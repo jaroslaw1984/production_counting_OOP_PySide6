@@ -1,0 +1,15 @@
+# --- Główne biblioteki z pipreqs ---
+customtkinter==6.0.0
+holidays==0.102
+pandas==3.0.5
+Pillow==12.3.0
+pyodbc==5.3.0
+python-docx==1.2.0
+SQLAlchemy==2.0.52
+
+# --- Silniki i kompilatory (pominięte przez pipreqs) ---
+openpyxl==3.1.5
+pyinstaller==6.19.0
+
+# --- Nowy silnik GUI do wdrożenia ---
+PySide6
