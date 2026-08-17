@@ -1,0 +1,70 @@
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E",       # pycodestyle
+    "F",       # pyflakes
+    "W",       # warnings
+    "I",       # import sorting
+    "B",       # bugbear
+    "UP",      # modern Python syntax
+    "SIM",     # simplification
+    "RUF",     # Ruff-specific rules
+]
+
+ignore = [
+    "W291",    # trailing whitespace
+    "W293",    # whitespace on blank lines
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "src",
+]
+
+[tool.basedpyright]
+pythonVersion = "3.14"
+# Zmiana z "recommended" na "standard" – linter staje się mniej agresywny
+typeCheckingMode = "basic"
+
+include = [
+    ".",
+]
+
+exclude = [
+    "venv",
+    ".venv",
+    ".ruff_cache",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+# Chcemy jawnego typowania atrybutów klas (to dobry nawyk w __init__).
+reportUnannotatedClassAttribute = "warning"
+
+# --- WYŁĄCZONE OSTRZEŻENIA 'UNKNOWN' ---
+# To te reguły powodowały lawinę błędów przy pracy z pandas.
+reportUnknownVariableType = "none"
+reportUnknownParameterType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+# ---------------------------------------
+
+# Brakujące importy i błędne importy traktujemy poważnie.
+reportMissingImports = "error"
+reportMissingModuleSource = "warning"
+
+# Brak typu zwrotnego każdej małej funkcji pozostaje wyłączony.
+reportMissingParameterType = "none"
+reportMissingTypeArgument = "none"
+reportUnknownLambdaType = "none"
+
+# Przydatne ostrzeżenia dotyczące jakości kodu.
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+reportUnusedFunction = "warning"
+reportDuplicateImport = "warning"
+reportPrivateUsage = "warning"
