@@ -1,12 +1,15 @@
 import tempfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+
 from project.config.paths import REPORT_TEMPLATE_PATH
 
-# --- funkcje eksportu/drukowania/edycji raportu DOCX ---       
+
+# --- funkcje eksportu/drukowania/edycji raportu DOCX ---
 def export_report_docx(report_data: dict, template_path: Path | None = None) -> Path:
     """Generuje DOCX na bazie template. Zwraca ścieżkę do wygenerowanego pliku."""
     if not report_data:
@@ -17,9 +20,9 @@ def export_report_docx(report_data: dict, template_path: Path | None = None) -> 
 
     if not template_path.exists():
         raise FileNotFoundError(f"Brak szablonu DOCX: {template_path}")
-    
+
     doc = Document(str(template_path))
-    
+
     def set_cell_margins(cell, top=200, bottom=200):
         """
         Marginesy w TWIPS:
@@ -36,7 +39,7 @@ def export_report_docx(report_data: dict, template_path: Path | None = None) -> 
             node.set(qn("w:type"), "dxa")
             tcMar.append(node)
 
-        tcPr.append(tcMar)        
+        tcPr.append(tcMar)
 
     def replace_all(old: str, new: str) -> None:
         # paragrafy
@@ -97,7 +100,7 @@ def export_report_docx(report_data: dict, template_path: Path | None = None) -> 
             r[2].text = str(item.get("qty_m", ""))
             r[3].text = str(item.get("pcs", ""))
             r[4].text = str(item.get("pallets", ""))
-            
+
             for cell in r:
                 set_cell_margins(cell, top=200, bottom=200)
 

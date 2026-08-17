@@ -1,6 +1,9 @@
-import pandas as pd
 from datetime import date
+
+import pandas as pd
+
 from project.core.logic.scheduling import add_shifts, pl_weekday_name, round_shifts_custom
+
 
 def build_db_report_pieces(
     df: pd.DataFrame,
@@ -10,7 +13,7 @@ def build_db_report_pieces(
     start_d: date,
     start_shift: int,
     saturday_by_machine: dict[str, bool],
-    sunday_by_machine: dict[str, bool]
+    sunday_by_machine: dict[str, bool],
 ) -> str:
     lines = []
     lines.append("---- Przewidywane zakończenie produkcji --- \n")
@@ -43,7 +46,9 @@ def build_db_report_pieces(
 
         # --- zbrojenia (tak samo jak Excel) ---
         # normalizacja kluczy
-        df_one["profile"] = df_one["profile"].astype("string").str.strip().str.split("-", n=1).str[0]
+        df_one["profile"] = (
+            df_one["profile"].astype("string").str.strip().str.split("-", n=1).str[0]
+        )
         df_one["side"] = df_one["side"].astype("string").str.strip().str.zfill(4)
 
         cfg = df_cfg.copy()
@@ -56,16 +61,20 @@ def build_db_report_pieces(
             on=["profile", "side"],
             how="left",
         )
-        
+
         missing = df_one[df_one["setting_time"].isna()]
         if not missing.empty:
             sample = missing[["profile", "side"]].drop_duplicates().head(15)
-            lines.append("⚠️ Brak czasu zbrojenia w pliku profile_config.csv dla kluczy 'profile, side':")
+            lines.append(
+                "⚠️ Brak czasu zbrojenia w pliku profile_config.csv dla kluczy 'profile, side':"
+            )
             lines.append(sample.to_string(index=False))
-            # i dopiero wtedy fillna(0) żeby program nie padł            
+            # i dopiero wtedy fillna(0) żeby program nie padł
 
-        df_one["setting_time"] = pd.to_numeric(df_one["setting_time"], errors="coerce").fillna(0).astype(int)
-        
+        df_one["setting_time"] = (
+            pd.to_numeric(df_one["setting_time"], errors="coerce").fillna(0).astype(int)
+        )
+
         # # --- ZBROJENIA: liczymy ZMIANY w kolejności (bloki), nie unikalne wartości ---
         # # --- ważne: DB czasem nie jest posortowane – sortuj po zleceniu (jeśli masz) ---
         # if "order_id" in df_one.columns:
@@ -97,12 +106,15 @@ def build_db_report_pieces(
         #             setup_min += st_val
         #         prev_key = key
 
-        # setup_shifts = setup_min / (8 * 60)    
-        
+        # setup_shifts = setup_min / (8 * 60)
+
         # --- ZBROJENIA DLA BAZY SQL (Brak sekwencji Hydry) ---
         if "order_id" in df_one.columns:
             df_one["_order_num"] = (
-                df_one["order_id"].astype("string").str.replace(r"\.0$", "", regex=True).str.lstrip("0")
+                df_one["order_id"]
+                .astype("string")
+                .str.replace(r"\.0$", "", regex=True)
+                .str.lstrip("0")
             )
             df_one["_order_num"] = pd.to_numeric(df_one["_order_num"], errors="coerce")
             df_one = df_one.sort_values(["_order_num"], kind="stable").drop(columns=["_order_num"])
@@ -112,32 +124,36 @@ def build_db_report_pieces(
         first_side = df_one["side"].iloc[0] if not df_one.empty else None
 
         # 2. Szukamy unikalnych zbrojeń (bo po posortowaniu SQL bloki są zniszczone)
-        unique_setups = df_one[["profile", "side", "setting_time"]].drop_duplicates(subset=["profile", "side"])
-        
+        unique_setups = df_one[["profile", "side", "setting_time"]].drop_duplicates(
+            subset=["profile", "side"]
+        )
+
         # 3. Odrzucamy pierwsze zbrojenie (Twoja żelazna zasada z produkcji)
-        mask_is_first = (unique_setups["profile"] == first_prof) & (unique_setups["side"] == first_side)
+        mask_is_first = (unique_setups["profile"] == first_prof) & (
+            unique_setups["side"] == first_side
+        )
         real_setups = unique_setups[~mask_is_first]
 
         # 4. Liczymy tylko te z czasem > 0
         real_setups = real_setups[real_setups["setting_time"] > 0]
-        
+
         setup_count = int(real_setups["setting_time"].count())
         setup_min = float(real_setups["setting_time"].sum())
         setup_shifts = setup_min / (8 * 60)
-        
+
         # --- zmiany: produkcja + zbrojenia ---
         prod_shifts = total_remaining / pps if total_remaining > 0 else 0.0
         shifts_exact = prod_shifts + setup_shifts
         shifts_rounded = round_shifts_custom(shifts_exact)
-        shifts_count = shifts_rounded 
+        shifts_count = shifts_rounded
 
         # --- koniec produkcji dla tej maszyny ---
         end_d, end_s = add_shifts(
             start_date=start_d,
             start_shift=start_shift,
             shifts_count=shifts_count,
-            work_saturday=m_sat,   
-            work_sunday=m_sun    
+            work_saturday=m_sat,
+            work_sunday=m_sun,
         )
 
         # --- raport dla tej maszyny ---
@@ -145,8 +161,12 @@ def build_db_report_pieces(
         lines.append(f"Ilość zbrojeń profili: {setup_count}")
         lines.append(f"Czas zbrojeń: {setup_min:.0f} min")
         lines.append(f"Zmiany (8h): {shifts_exact:.2f} → {shifts_rounded}")
-        lines.append(f"Start liczenia: {pl_weekday_name(start_d)} ({start_d.isoformat()}) zmiana {start_shift}")
+        lines.append(
+            f"Start liczenia: {pl_weekday_name(start_d)} ({start_d.isoformat()}) zmiana {start_shift}"
+        )
         lines.append("---------------------------------------------------------------------")
-        lines.append(f"Przewidywana produkcja do: {pl_weekday_name(end_d)} (zmiana {end_s}) ({end_d.strftime('%d.%m.%Y')})\n")
+        lines.append(
+            f"Przewidywana produkcja do: {pl_weekday_name(end_d)} (zmiana {end_s}) ({end_d.strftime('%d.%m.%Y')})\n"
+        )
 
     return "\n".join(lines)

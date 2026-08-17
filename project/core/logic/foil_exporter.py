@@ -1,11 +1,13 @@
 import json
+import re
 import threading
 import traceback
-import re
+from datetime import date, datetime
 from pathlib import Path
-from datetime import datetime, date
+
 from project.config.db_loader import fetch_bom_for_articles, set_foil_report_queued
-from project.config.paths import FOIL_REPORTS_PATH, DOUBLE_SIDED_MACHINES_CONFIG
+from project.config.paths import DOUBLE_SIDED_MACHINES_CONFIG, FOIL_REPORTS_PATH
+
 
 class FoilExporter:
     def __init__(self, state, view):
@@ -17,11 +19,11 @@ class FoilExporter:
         config_path = Path(DOUBLE_SIDED_MACHINES_CONFIG)
         if not config_path.exists():
             return False
-        
+
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 machines_list = json.load(f)
-            
+
             # --- ZABEZPIECZENIE PRZED "Maszyna 1" w "Maszyna 11" ---
             # Używamy re.search z tzw. "negative lookahead" (?!\d).
             # Szukamy nazwy, ale sprawdzamy, czy zaraz za nią nie stoi inna cyfra.
@@ -30,7 +32,7 @@ class FoilExporter:
                 if re.search(pattern, machine_name):
                     return True
             return False
-            
+
         except Exception as e:
             print(f"Błąd odczytu konfiguracji maszyn obustronnych: {e}")
             return False
@@ -56,43 +58,63 @@ class FoilExporter:
             is_double_sided_machine = self._is_double_sided(machine_name)
 
             profile_col = "profile_full" if "profile_full" in df_plan.columns else "profile"
-            df_plan[profile_col] = df_plan[profile_col].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+            df_plan[profile_col] = (
+                df_plan[profile_col]
+                .astype("string")
+                .str.strip()
+                .str.replace(r"\.0$", "", regex=True)
+            )
             matnr_list = df_plan[profile_col].dropna().unique().tolist()
 
             self.view.show_progress_popup("Generowanie raportu folii...")
-            threading.Thread(target=lambda: self._background_task(df_plan, matnr_list, machine_name, profile_col, is_double_sided_machine), daemon=True).start()
+            threading.Thread(
+                target=lambda: self._background_task(
+                    df_plan, matnr_list, machine_name, profile_col, is_double_sided_machine
+                ),
+                daemon=True,
+            ).start()
 
         except Exception as e:
             self.view.show_error("Błąd", str(e))
 
-    def _background_task(self, df_plan, matnr_list, machine_name, profile_col, is_double_sided_machine):
+    def _background_task(
+        self, df_plan, matnr_list, machine_name, profile_col, is_double_sided_machine
+    ):
         try:
-            self.view.root.after(0, lambda: self.view.update_progress_popup(10, "Pobieranie BOM..."))
+            self.view.root.after(
+                0, lambda: self.view.update_progress_popup(10, "Pobieranie BOM...")
+            )
             bom_df = fetch_bom_for_articles(matnr_list)
-            
+
             # --- ZABÓJCA "DUCHÓW" Z BAZY KRONOS ---
             if not bom_df.empty:
-                bom_df['MATNR'] = bom_df['MATNR'].astype("string").str.strip()
-                bom_df['POSNR'] = bom_df['POSNR'].astype("string").str.strip()
-                bom_df['IDNRK'] = bom_df['IDNRK'].astype("string").str.strip()
+                bom_df["MATNR"] = bom_df["MATNR"].astype("string").str.strip()
+                bom_df["POSNR"] = bom_df["POSNR"].astype("string").str.strip()
+                bom_df["IDNRK"] = bom_df["IDNRK"].astype("string").str.strip()
                 # Usuwamy zduplikowane wiersze dla tego samego artykułu i pozycji BOM
-                bom_df = bom_df.drop_duplicates(subset=['MATNR', 'POSNR', 'IDNRK'])
+                bom_df = bom_df.drop_duplicates(subset=["MATNR", "POSNR", "IDNRK"])
             # --------------------------------------
 
-            self.view.root.after(0, lambda: self.view.update_progress_popup(30, "Agregowanie danych..."))
-            
+            self.view.root.after(
+                0, lambda: self.view.update_progress_popup(30, "Agregowanie danych...")
+            )
+
             def progress_cb(current, total):
                 p = 30 + int((current / total) * 60)
-                self.view.root.after(0, lambda: self.view.update_progress_popup(p, f"Analiza: {current}/{total}"))
+                self.view.root.after(
+                    0, lambda: self.view.update_progress_popup(p, f"Analiza: {current}/{total}")
+                )
 
-            report_data, missing_boms = self._aggregate_foil_requirements(df_plan, bom_df, profile_col, is_double_sided_machine, progress_cb)
-            
+            report_data, missing_boms = self._aggregate_foil_requirements(
+                df_plan, bom_df, profile_col, is_double_sided_machine, progress_cb
+            )
+
             success = self._save_json_payload(machine_name, report_data, is_double_sided_machine)
-            
+
             if success:
                 msg = f"Raport dla {machine_name} gotowy."
                 if missing_boms:
-                    msg += f"\n\nBrak BOM dla:\n- " + "\n- ".join(sorted(missing_boms))
+                    msg += "\n\nBrak BOM dla:\n- " + "\n- ".join(sorted(missing_boms))
                 self.view.root.after(0, lambda: self.view.show_completion_in_popup(msg))
             else:
                 self.view.root.after(0, self.view.hide_progress_popup)
@@ -102,8 +124,10 @@ class FoilExporter:
             self.view.root.after(0, self.view.hide_progress_popup)
             self.view.root.after(0, lambda err=str(e): self.view.show_error("Błąd", err))
 
-    def _aggregate_foil_requirements(self, df_plan, bom_df, profile_col, is_double_sided_machine, progress_callback) -> tuple[dict, list]:
-        report_data = {'production_sequence': [], 'combined_side': [], 'protective': {}}
+    def _aggregate_foil_requirements(
+        self, df_plan, bom_df, profile_col, is_double_sided_machine, progress_callback
+    ) -> tuple[dict, list]:
+        report_data = {"production_sequence": [], "combined_side": [], "protective": {}}
         missing_boms = set()
 
         grouped_plan = []
@@ -114,164 +138,182 @@ class FoilExporter:
 
             if meters <= 0:
                 continue
-                
-            if grouped_plan and grouped_plan[-1]['matnr'] == matnr and grouped_plan[-1]['side'] == side:
-                grouped_plan[-1]['meters'] += meters
+
+            if (
+                grouped_plan
+                and grouped_plan[-1]["matnr"] == matnr
+                and grouped_plan[-1]["side"] == side
+            ):
+                grouped_plan[-1]["meters"] += meters
             else:
-                grouped_plan.append({'matnr': matnr, 'meters': meters, 'side': side, 'order_index': i})
+                grouped_plan.append(
+                    {"matnr": matnr, "meters": meters, "side": side, "order_index": i}
+                )
 
         total_groups = len(grouped_plan)
-        
+
         # --- POPRAWIONE MAPOWANIE HYDRA -> KRONOS ---
         op_to_posnr = {
-            '0021': ['0030'],            # Zewnętrzna
-            '0022': ['0020'],            # Wewnętrzna
-            '0023': ['0070'],            # Górna
-            '0020': ['0030', '0020']     # Obustronnie (Kombajn)
-        }
-        
-        posnr_desc = {
-            '0030': 'Zewn.',
-            '0020': 'Wewn.',
-            '0070': 'Górna'
+            "0021": ["0030"],  # Zewnętrzna
+            "0022": ["0020"],  # Wewnętrzna
+            "0023": ["0070"],  # Górna
+            "0020": ["0030", "0020"],  # Obustronnie (Kombajn)
         }
 
+        posnr_desc = {"0030": "Zewn.", "0020": "Wewn.", "0070": "Górna"}
+
         for i, item in enumerate(grouped_plan):
-            matnr = item['matnr']
-            meters = item['meters']
-            op_side = item['side']
-            order_idx = item['order_index']
-            
-            requirements = bom_df[bom_df['MATNR'] == matnr]
+            matnr = item["matnr"]
+            meters = item["meters"]
+            op_side = item["side"]
+            order_idx = item["order_index"]
+
+            requirements = bom_df[bom_df["MATNR"] == matnr]
             if requirements.empty:
                 missing_boms.add(matnr)
 
             # --- Wspólne ustalenie wymaganych pozycji na podstawie zleconej strony ---
-            target_posnrs = op_to_posnr.get(op_side, ['0030', '0020', '0070'])
+            target_posnrs = op_to_posnr.get(op_side, ["0030", "0020", "0070"])
 
             if is_double_sided_machine:
                 # --- TRYB KOMBAJNU (Wszystko razem) ---
-                for side_pos in target_posnrs: 
-                    side_req = requirements[requirements['POSNR'] == side_pos]
-                    
+                for side_pos in target_posnrs:
+                    side_req = requirements[requirements["POSNR"] == side_pos]
+
                     if side_req.empty:
                         # BRAK FOLII DEKORACYJNEJ W BAZIE -> Wstrzykujemy powiadomienie o F99
-                        report_data['combined_side'].append({
-                            'idnrk': 'F99 (FOLIA KLIENTA)', 
-                            'width': 0, 
-                            'meters': meters, 
-                            'geometry': matnr, 
-                            'order_index': order_idx
-                        })
+                        report_data["combined_side"].append(
+                            {
+                                "idnrk": "F99 (FOLIA KLIENTA)",
+                                "width": 0,
+                                "meters": meters,
+                                "geometry": matnr,
+                                "order_index": order_idx,
+                            }
+                        )
                     else:
                         for _, bom_row in side_req.iterrows():
-                            idnrk = str(bom_row['IDNRK'])
+                            idnrk = str(bom_row["IDNRK"])
                             _, width = self._extract_width_and_type(idnrk)
-                            
-                            report_data['combined_side'].append({
-                                'idnrk': idnrk, 'width': width, 'meters': meters, 'geometry': matnr, 'order_index': order_idx
-                            })
+
+                            report_data["combined_side"].append(
+                                {
+                                    "idnrk": idnrk,
+                                    "width": width,
+                                    "meters": meters,
+                                    "geometry": matnr,
+                                    "order_index": order_idx,
+                                }
+                            )
             else:
                 # --- TRYB PRZEPLATANY DLA RESZTY MASZYN ---
                 for posnr in target_posnrs:
-                    side_req = requirements[requirements['POSNR'] == posnr]
-                    
+                    side_req = requirements[requirements["POSNR"] == posnr]
+
                     if side_req.empty:
                         # BRAK FOLII DEKORACYJNEJ W BAZIE -> Wstrzykujemy powiadomienie o F99
-                        report_data['production_sequence'].append({
-                            'idnrk': 'F99 (FOLIA KLIENTA)', 
-                            'width': 0, 
-                            'meters': meters, 
-                            'geometry': matnr, 
-                            'order_index': order_idx,
-                            'side_desc': posnr_desc.get(posnr, '')
-                        })
+                        report_data["production_sequence"].append(
+                            {
+                                "idnrk": "F99 (FOLIA KLIENTA)",
+                                "width": 0,
+                                "meters": meters,
+                                "geometry": matnr,
+                                "order_index": order_idx,
+                                "side_desc": posnr_desc.get(posnr, ""),
+                            }
+                        )
                     else:
                         for _, bom_row in side_req.iterrows():
-                            idnrk = str(bom_row['IDNRK'])
+                            idnrk = str(bom_row["IDNRK"])
                             _, width = self._extract_width_and_type(idnrk)
-                            
-                            report_data['production_sequence'].append({
-                                'idnrk': idnrk, 
-                                'width': width, 
-                                'meters': meters, 
-                                'geometry': matnr, 
-                                'order_index': order_idx,
-                                'side_desc': posnr_desc.get(posnr, '')
-                            })
 
-            prot_req = requirements[requirements['POSNR'].isin(['0050', '0060', '0090'])]
+                            report_data["production_sequence"].append(
+                                {
+                                    "idnrk": idnrk,
+                                    "width": width,
+                                    "meters": meters,
+                                    "geometry": matnr,
+                                    "order_index": order_idx,
+                                    "side_desc": posnr_desc.get(posnr, ""),
+                                }
+                            )
+
+            prot_req = requirements[requirements["POSNR"].isin(["0050", "0060", "0090"])]
             for _, bom_row in prot_req.iterrows():
-                idnrk = str(bom_row['IDNRK'])
-                
+                idnrk = str(bom_row["IDNRK"])
+
                 # Wyciągamy bazę geometrii
-                base_geometry = matnr.split('-')[0]
-                
+                base_geometry = matnr.split("-")[0]
+
                 # Tworzymy podkategorię dla geometrii, jeśli jeszcze nie istnieje
-                if base_geometry not in report_data['protective']:
-                    report_data['protective'][base_geometry] = {}
-                    
+                if base_geometry not in report_data["protective"]:
+                    report_data["protective"][base_geometry] = {}
+
                 # Sumujemy folie wewnątrz danej geometrii
-                report_data['protective'][base_geometry][idnrk] = report_data['protective'][base_geometry].get(idnrk, 0.0) + meters
+                report_data["protective"][base_geometry][idnrk] = (
+                    report_data["protective"][base_geometry].get(idnrk, 0.0) + meters
+                )
 
             if progress_callback and (i % 5 == 0 or i == total_groups - 1):
                 progress_callback(i + 1, total_groups)
-                        
+
         return report_data, list(missing_boms)
 
     def _extract_width_and_type(self, idnrk: str):
         """Dynamicznie wyciąga typ i szerokość z IDNRK. Folie numeryczne zrzuca na koniec."""
         idnrk = str(idnrk).strip()
-        
+
         # Odcięcie wiodących zer
-        clean_id = idnrk.lstrip('0')
-        
+        clean_id = idnrk.lstrip("0")
+
         # Jeśli po odcięciu zer zostały same cyfry (nasza niestandardowa folia)
         if clean_id.isdigit():
-            return 'Z_SPECIAL', 9999 
-            
-        parts = idnrk.split('.')
+            return "Z_SPECIAL", 9999
+
+        parts = idnrk.split(".")
         foil_prefix = parts[0]
         try:
             width = int(parts[-1])
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             width = 0
-            
+
         return foil_prefix, width
 
     def _save_json_payload(self, machine_name, report_data, is_double_sided_machine) -> bool:
         out_dir = Path(FOIL_REPORTS_PATH)
         out_dir.mkdir(parents=True, exist_ok=True)
-        
+
         safe_name = str(machine_name).replace("/", "-").replace("\\", "-")
-        timestamp_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file_path = out_dir / f"{safe_name}_{timestamp_str}.json"
-        
+
         # --- Pobieramy gotowe dane wstrzyknięte przez kontroler ---
         report_date_str = self.state.last_report_data.get("report_date", date.today().isoformat())
         raw_shift_info = self.state.last_report_data.get("shift_info", "brak danych")
-        
+
         # Usuwamy człon daty (np. " (07.07.2026)") zostawiając sam dzień i zmianę
-        shift_info_clean = re.sub(r'\s*\(\d{2}\.\d{2}\.\d{4}\)', '', raw_shift_info).strip()
-        
+        shift_info_clean = re.sub(r"\s*\(\d{2}\.\d{2}\.\d{4}\)", "", raw_shift_info).strip()
+
         # Wstrzyknięcie danych do wnętrza raportu
-        report_data["snapshot_date"] = datetime.strptime(report_date_str, "%Y-%m-%d").strftime('%d.%m.%Y')
+        report_data["snapshot_date"] = datetime.strptime(report_date_str, "%Y-%m-%d").strftime(
+            "%d.%m.%Y"
+        )
         report_data["shift_info"] = shift_info_clean  # Używamy wyczyszczonej zmiennej
-        
+
         payload = {
             "machine": machine_name,
             "is_double_sided": is_double_sided_machine,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
-            "data": report_data
+            "data": report_data,
         }
-        
+
         file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=4), encoding="utf-8")
-        
+
         try:
             set_foil_report_queued(machine_name)
             print(f"[SIGNAL KRONOS] SUKCES: Wysłano sygnał gotowości dla: {machine_name}")
         except Exception as e:
-            print(f"[SIGNAL KRONOS] BŁĄD KRYTYCZNY: Nie udało się wysłać sygnału do bazy!")
+            print("[SIGNAL KRONOS] BŁĄD KRYTYCZNY: Nie udało się wysłać sygnału do bazy!")
             print(f"Szczegóły błędu: {e}")
-            
+
         return True

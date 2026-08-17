@@ -1,6 +1,8 @@
-import pandas as pd
 import re
 from collections import Counter, defaultdict
+
+import pandas as pd
+
 
 class SmartPlanMatcher:
     # --- wzorce artykułów, dla których brak strony 0022 jest poprawny (ignorujemy je) ---
@@ -8,56 +10,58 @@ class SmartPlanMatcher:
         r"-[123]00",  # np. -100..., -200..., -300... => tylko 0021
     ]
 
-    def __init__(self, df_hydra_group: pd.DataFrame, df_smart_plan: pd.DataFrame | None, df_sap: pd.DataFrame):
+    def __init__(
+        self, df_hydra_group: pd.DataFrame, df_smart_plan: pd.DataFrame | None, df_sap: pd.DataFrame
+    ):
         self.df_hydra = df_hydra_group
         self.df_plan = df_smart_plan
         self.df_sap = df_sap
-        
+
         self.use_smart_matching = isinstance(self.df_plan, pd.DataFrame) and not self.df_plan.empty
-        
+
         self.blocks = []
         self.required_by_block = {}
         self.sap_rows_by_index = {}
         self.allocated_items = {}
         self.missing_0022_articles = []
-        
+
         self.sap_user = ""
         self.sap_date = ""
-        
+
     def run_matching(self) -> dict:
-            """
-            Główny silnik. Odpala po kolei kroki algorytmu.
-            Zwraca słownik z gotowymi danymi dla kontrolera.
-            """
-            # 1. Walidacja stron 0022 (szukamy braków)
-            self._validate_double_sided_orders()
-            
-            # 2. Budowa bloków z Hydry
-            self._build_blocks()
-            
-            # 3. Jeśli mamy plan, liczymy metry z planu
-            if self.use_smart_matching:
-                self._calc_required_m()
-                
-            # 4. Przygotowanie danych z SAP
-            self._prepare_sap_data()
-                
-            # 5. Główna alokacja / Dobieranie pozycji (SAP -> Hydra)
-            lines, rows = self._allocate_sap_items()
-            
-            # Zwracamy czysty wynik do Kontrolera
-            return {
-                "blocks": self.blocks,
-                "lines": lines,
-                "rows": rows,
-                "missing_articles": self.missing_0022_articles,
-                "sap_user": self.sap_user,
-                "sap_date": self.sap_date  
-            }
+        """
+        Główny silnik. Odpala po kolei kroki algorytmu.
+        Zwraca słownik z gotowymi danymi dla kontrolera.
+        """
+        # 1. Walidacja stron 0022 (szukamy braków)
+        self._validate_double_sided_orders()
+
+        # 2. Budowa bloków z Hydry
+        self._build_blocks()
+
+        # 3. Jeśli mamy plan, liczymy metry z planu
+        if self.use_smart_matching:
+            self._calc_required_m()
+
+        # 4. Przygotowanie danych z SAP
+        self._prepare_sap_data()
+
+        # 5. Główna alokacja / Dobieranie pozycji (SAP -> Hydra)
+        lines, rows = self._allocate_sap_items()
+
+        # Zwracamy czysty wynik do Kontrolera
+        return {
+            "blocks": self.blocks,
+            "lines": lines,
+            "rows": rows,
+            "missing_articles": self.missing_0022_articles,
+            "sap_user": self.sap_user,
+            "sap_date": self.sap_date,
+        }
 
     # # # # # # # # # #
     # METODY PRYWATNE #
-    # # # # # # # # # # 
+    # # # # # # # # # #
 
     def _validate_double_sided_orders(self) -> None:
         """
@@ -70,7 +74,9 @@ class SmartPlanMatcher:
         tmp = self.df_hydra.copy()
         tmp["article"] = tmp["article"].astype("string").str.strip()
         tmp["side"] = (
-            tmp["side"].astype("string").str.strip()
+            tmp["side"]
+            .astype("string")
+            .str.strip()
             .str.replace(r"\.0$", "", regex=True)
             .str.zfill(4)
         )
@@ -122,28 +128,32 @@ class SmartPlanMatcher:
             if key != prev:
                 if prev is not None:
                     b = tmp.iloc[start:i]
-                    blocks.append({
-                        "gp": prev[0],
-                        "side": prev[1],
-                        "order_ids": set(b["order_id"].tolist()),
-                        "start_i": start,
-                        "end_i": i - 1,
-                    })
+                    blocks.append(
+                        {
+                            "gp": prev[0],
+                            "side": prev[1],
+                            "order_ids": set(b["order_id"].tolist()),
+                            "start_i": start,
+                            "end_i": i - 1,
+                        }
+                    )
                 prev = key
                 start = i
 
         if prev is not None and len(tmp) > 0:
             b = tmp.iloc[start:]
-            blocks.append({
-                "gp": prev[0],
-                "side": prev[1],
-                "order_ids": set(b["order_id"].tolist()),
-                "start_i": start,
-                "end_i": len(tmp) - 1,
-            })
-            
+            blocks.append(
+                {
+                    "gp": prev[0],
+                    "side": prev[1],
+                    "order_ids": set(b["order_id"].tolist()),
+                    "start_i": start,
+                    "end_i": len(tmp) - 1,
+                }
+            )
+
         self.blocks = blocks
-        
+
     def _calc_required_m(self) -> None:
         """
         Liczy metry do zrobienia dla każdego bloku z Hydry na podstawie wczytanego planu.
@@ -158,20 +168,16 @@ class SmartPlanMatcher:
         profile_col = "profile_full" if "profile_full" in dfx.columns else "profile"
 
         # --- baza profilu z planu (np. "HO8030") ---
-        dfx["index_base"] = (
-            dfx[profile_col]
-            .astype("string")
-            .str.strip()
-            .str.split("-", n=1)
-            .str[0]
-        )
+        dfx["index_base"] = dfx[profile_col].astype("string").str.strip().str.split("-", n=1).str[0]
 
         dfx["order_id"] = self._normalize_order_id_series(dfx["order_id"])
 
         # --- normalizujemy stronę w planie produkcji ---
         if "side" in dfx.columns:
             dfx["side_norm"] = (
-                dfx["side"].astype("string").str.strip()
+                dfx["side"]
+                .astype("string")
+                .str.strip()
                 .str.replace(r"\.0$", "", regex=True)
                 .str.zfill(4)
             )
@@ -209,10 +215,10 @@ class SmartPlanMatcher:
 
             # --- twardo filtrowanie po bazie, zleceniach i stronie ---
             m = dfx.loc[
-                (dfx["index_base"] == gp_base) & 
-                (dfx["order_id"].isin(orders)) &
-                (dfx["side_norm"] == b_side),
-                "_m"
+                (dfx["index_base"] == gp_base)
+                & (dfx["order_id"].isin(orders))
+                & (dfx["side_norm"] == b_side),
+                "_m",
             ].sum()
 
             out[i] = float(m)
@@ -233,13 +239,13 @@ class SmartPlanMatcher:
             idx = str(r.get("INDEKS", "")).strip()
             if not idx:
                 continue
-                
+
             # --- wyciąganie użytkownika i daty z pierwszego napotkanego wiersza ---
             if not self.sap_user and "USER" in self.df_sap.columns:
                 u = r.get("USER")
                 if pd.notna(u) and str(u).strip():
                     self.sap_user = str(u).strip()
-                    
+
             if not self.sap_date and "DATA" in self.df_sap.columns:
                 d = r.get("DATA")
                 if pd.notna(d) and str(d).strip():
@@ -277,41 +283,47 @@ class SmartPlanMatcher:
                     break
 
             # --- dodajemy gotowy, sformatowany słownik dla danego indeksu ---
-            sap_rows.setdefault(idx, []).append({
-                "qty": qty,
-                "szt": szt,
-                "jm": jm,
-                "seq": seq,
-            })
+            sap_rows.setdefault(idx, []).append(
+                {
+                    "qty": qty,
+                    "szt": szt,
+                    "jm": jm,
+                    "seq": seq,
+                }
+            )
 
         self.sap_rows_by_index = sap_rows
-        
+
     def _pick_item_without_required(self, items: list[dict], remaining_occurrences: int) -> dict:
-            """
-            Fallback kiedy nie mamy required_m:
-            Dobiera pozycję najbliższą średniej ilości na pozostały blok.
-            """
-            if not items:
-                return {}
+        """
+        Fallback kiedy nie mamy required_m:
+        Dobiera pozycję najbliższą średniej ilości na pozostały blok.
+        """
+        if not items:
+            return {}
 
-            remaining_occurrences = max(int(remaining_occurrences), 1)
-            total_left = sum(float(it.get("qty", 0.0) or 0.0) for it in items)
-            avg = total_left / remaining_occurrences
+        remaining_occurrences = max(int(remaining_occurrences), 1)
+        total_left = sum(float(it.get("qty", 0.0) or 0.0) for it in items)
+        avg = total_left / remaining_occurrences
 
-            def q(it):
-                return float(it.get("qty", 0.0) or 0.0)
+        def q(it):
+            return float(it.get("qty", 0.0) or 0.0)
 
-            if remaining_occurrences > 1:
-                best = max(items, key=lambda it: q(it))
-            else:
-                best = min(items, key=lambda it: (abs(q(it) - avg), -q(it)))
-                
-            items.remove(best)
-            return best
+        if remaining_occurrences > 1:
+            best = max(items, key=lambda it: q(it))
+        else:
+            best = min(items, key=lambda it: (abs(q(it) - avg), -q(it)))
+
+        items.remove(best)
+        return best
 
     def _pick_items_best_fit(
-        self, items: list[dict], required_m: float, 
-        max_over_ratio: float = 3.0, rel_tol: float = 0.20, abs_tol: float = 10.0
+        self,
+        items: list[dict],
+        required_m: float,
+        max_over_ratio: float = 3.0,
+        rel_tol: float = 0.20,
+        abs_tol: float = 10.0,
     ) -> list[dict]:
         """
         Dobiera pozycje z SAP dla konkretnego wymaganego metrażu.
@@ -322,7 +334,7 @@ class SmartPlanMatcher:
         if req <= 0:
             return []
 
-        def q(it): 
+        def q(it):
             return float(it.get("qty", 0.0) or 0.0)
 
         bigger = [it for it in items if q(it) >= req]
@@ -367,15 +379,17 @@ class SmartPlanMatcher:
                 if not items:
                     continue
                 has_seq = any(it.get("seq") is not None for it in items)
-                
+
                 if has_seq:
-                    items_sorted = sorted(items, key=lambda it: (it.get("seq") or 0))
+                    items_sorted = sorted(items, key=lambda it: it.get("seq") or 0)
                     for bn, sap_item in zip(block_nos, items_sorted):
                         self.allocated_items[bn] = sap_item
                         if sap_item in self.sap_rows_by_index.get(gp, []):
                             self.sap_rows_by_index[gp].remove(sap_item)
                 else:
-                    items_sorted = sorted(items, key=lambda it: float(it.get("qty", 0.0) or 0.0), reverse=True)
+                    items_sorted = sorted(
+                        items, key=lambda it: float(it.get("qty", 0.0) or 0.0), reverse=True
+                    )
                     for bn, sap_item in zip(reversed(block_nos), items_sorted):
                         self.allocated_items[bn] = sap_item
                         if sap_item in self.sap_rows_by_index.get(gp, []):
@@ -386,12 +400,12 @@ class SmartPlanMatcher:
         Główna pętla przydzielająca. Łączy zebrane wcześniej dane.
         Zwraca gotowe linie do podglądu tekstowego oraz słowniki (wiersze) do DOCX.
         """
-        # --- najpierw spróbujmy pre-alokacji (zadziała tylko gdy nie ma Smart Matchingu) --- 
+        # --- najpierw spróbujmy pre-alokacji (zadziała tylko gdy nie ma Smart Matchingu) ---
         self._pre_allocate_fallback()
 
         rows = []
         lp = 1
-        
+
         total_blocks_by_gp = Counter(b["gp"] for b in self.blocks)
         used_blocks_by_gp = defaultdict(int)
 
@@ -418,7 +432,9 @@ class SmartPlanMatcher:
 
                 if required_m is not None and required_m > 0:
                     # Smart Matching
-                    picked = self._pick_items_best_fit(items, required_m, max_over_ratio=3.0, rel_tol=0.25, abs_tol=15.0)
+                    picked = self._pick_items_best_fit(
+                        items, required_m, max_over_ratio=3.0, rel_tol=0.25, abs_tol=15.0
+                    )
                     for it in picked:
                         total_qty += float(it.get("qty", 0.0))
                         total_szt += int(it.get("szt", 0))
@@ -431,14 +447,16 @@ class SmartPlanMatcher:
                     total_qty += float(it.get("qty", 0.0))
                     total_szt += int(it.get("szt", 0))
 
-            rows.append({
-                "lp": lp,
-                "index": gp,
-                "qty": float(total_qty),
-                "jm": jm,
-                "szt": int(total_szt),
-                "pallets": "",
-            })
+            rows.append(
+                {
+                    "lp": lp,
+                    "index": gp,
+                    "qty": float(total_qty),
+                    "jm": jm,
+                    "szt": int(total_szt),
+                    "pallets": "",
+                }
+            )
 
             used_blocks_by_gp[gp] += 1
             lp += 1
@@ -470,6 +488,8 @@ class SmartPlanMatcher:
         # --- budowa stringów na potrzeby podglądu ---
         lines = []
         for r in rows:
-            lines.append(f'{r["lp"]:>2}. {r["index"]:<18}  {float(r["qty"]):>10.1f} {r["jm"]:<2}  {int(r["szt"]):>6}')
+            lines.append(
+                f"{r['lp']:>2}. {r['index']:<18}  {float(r['qty']):>10.1f} {r['jm']:<2}  {int(r['szt']):>6}"
+            )
 
         return lines, rows
