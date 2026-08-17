@@ -1,9 +1,10 @@
+import urllib.parse
+
 import pandas as pd
 import pyodbc
-import urllib.parse
 from sqlalchemy import create_engine, text
-from project.config.paths import SERVER, DATABASE, SAP_SERVER, SAP_DATABASE, VIEW_FULLNAME
 
+from project.config.paths import DATABASE, SAP_DATABASE, SAP_SERVER, SERVER, VIEW_FULLNAME
 
 
 def _pick_driver() -> str:
@@ -12,6 +13,7 @@ def _pick_driver() -> str:
         if name in drivers:
             return name
     raise RuntimeError(f"No SQL Server ODBC driver found. Available: {drivers}")
+
 
 def _get_hydra_engine():
     driver = _pick_driver()
@@ -27,6 +29,7 @@ def _get_hydra_engine():
     quoted_conn_str = urllib.parse.quote_plus(conn_str)
     return create_engine(f"mssql+pyodbc:///?odbc_connect={quoted_conn_str}")
 
+
 def _get_sap_engine():
     driver = _pick_driver()
     conn_str = (
@@ -39,6 +42,7 @@ def _get_sap_engine():
     )
     quoted_conn_str = urllib.parse.quote_plus(conn_str)
     return create_engine(f"mssql+pyodbc:///?odbc_connect={quoted_conn_str}")
+
 
 def _connect_hydra() -> pyodbc.Connection:
     driver = _pick_driver()  # <- dopiero teraz, na żądanie
@@ -54,6 +58,7 @@ def _connect_hydra() -> pyodbc.Connection:
 
     return pyodbc.connect(conn_str)
 
+
 def _connect_sap() -> pyodbc.Connection:
     driver = _pick_driver()
     conn_str = (
@@ -66,6 +71,7 @@ def _connect_sap() -> pyodbc.Connection:
     )
     return pyodbc.connect(conn_str)
 
+
 def fetch_available_machines() -> list[str]:
     sql = f"""
         SELECT DISTINCT masch_nr
@@ -73,7 +79,7 @@ def fetch_available_machines() -> list[str]:
         WHERE masch_nr IS NOT NULL AND LTRIM(RTRIM(masch_nr)) <> ''
         ORDER BY masch_nr
     """
-    
+
     engine = _get_hydra_engine()
     with engine.connect() as conn:
         df = pd.read_sql(sql, conn)
@@ -117,6 +123,7 @@ def fetch_orders_for_machines(machines: list[str]) -> pd.DataFrame:
 
     return df
 
+
 def debug_machine_filters(machine: str):
     # wersja Z FILTRAMI (czyli to co robi program)
     df = fetch_orders_for_machines([machine])
@@ -138,6 +145,7 @@ def debug_machine_filters(machine: str):
         """
         raw = pd.read_sql(sql, conn, params=(machine,))
 
+
 # Zwraca DF w formacie "jak do liczenia":
 def normalize_db_df(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -150,20 +158,22 @@ def normalize_db_df(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
     # 1) nazwy kolumn -> format podobny do Excela
-    out = out.rename(columns={
-        "masch_nr": "workplace",
-        "Geometrie": "profile",
-        "Vorgang": "side",
-        "eingeplant": "unit_p",
-        "soll_menge_bas": "target_value_p",
-        "gut_bas": "good_qty_p",
-        "a_status": "status",
-        "artikel": "article",
-        "aus_bas": "aus_bas",
-        "soll_menge_sek": "target_value_pcs",
-        "gut_sek": "good_qty_pcs",
-        "aus_sek": "aus_pcs",
-    })
+    out = out.rename(
+        columns={
+            "masch_nr": "workplace",
+            "Geometrie": "profile",
+            "Vorgang": "side",
+            "eingeplant": "unit_p",
+            "soll_menge_bas": "target_value_p",
+            "gut_bas": "good_qty_p",
+            "a_status": "status",
+            "artikel": "article",
+            "aus_bas": "aus_bas",
+            "soll_menge_sek": "target_value_pcs",
+            "gut_sek": "good_qty_pcs",
+            "aus_sek": "aus_pcs",
+        }
+    )
 
     # 2) czyszczenie tekstów
     out["workplace"] = out["workplace"].astype("string").str.strip()
@@ -173,36 +183,36 @@ def normalize_db_df(df: pd.DataFrame) -> pd.DataFrame:
     out["status"] = out["status"].astype("string").str.strip()
 
     # 3) liczby (na wypadek przecinków dziesiętnych)
-    for col in ["target_value_p", "good_qty_p", "aus_bas", "target_value_pcs", "good_qty_pcs", "aus_pcs"]:
+    for col in [
+        "target_value_p",
+        "good_qty_p",
+        "aus_bas",
+        "target_value_pcs",
+        "good_qty_pcs",
+        "aus_pcs",
+    ]:
         if col in out.columns:
             # jeśli przyjdzie jako tekst "58,5" -> zamiana
-            out[col] = (
-                out[col]
-                .astype("string")
-                .str.replace(",", ".", regex=False)
-            )
+            out[col] = out[col].astype("string").str.replace(",", ".", regex=False)
             out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
 
     # 4) remaining: dla U/L liczymy soll - gut; dla V też wyjdzie soll - 0 (OK)
     out["remaining_p"] = (out["target_value_p"] - out["good_qty_p"]).clip(lower=0.0)
-    
 
     # 5) SZTUKI (jeśli dostępne w DB)
     if "target_value_pcs" in out.columns and "good_qty_pcs" in out.columns:
         out["remaining_pcs"] = (out["target_value_pcs"] - out["good_qty_pcs"]).clip(lower=0.0)
 
-
     if "soll_menge_sek" in out.columns and "gut_sek" in out.columns:
         out["remaining_pcs"] = (
-            out["soll_menge_sek"].astype("string")
-            .str.replace(",", ".", regex=False)
+            out["soll_menge_sek"].astype("string").str.replace(",", ".", regex=False)
         )
         out["remaining_pcs"] = (
-            pd.to_numeric(out["remaining_pcs"], errors="coerce").fillna(0)
-            - out["good_qty_pcs"]
+            pd.to_numeric(out["remaining_pcs"], errors="coerce").fillna(0) - out["good_qty_pcs"]
         ).clip(lower=0)
 
     return out
+
 
 def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
     sql = text("""
@@ -223,15 +233,16 @@ def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
 
     return df
 
+
 def fetch_bom_for_articles(matnr_list: list) -> pd.DataFrame:
     """Pobiera strukturę BOM z SAP/Kronosa dla zadanej listy artykułów."""
-    
+
     if not matnr_list:
         return pd.DataFrame()
 
     # Formatuje listę jako zapytanie string np. '1001', '1002'
     matnr_str = "', '".join([str(m).strip() for m in matnr_list])
-    
+
     sql = f"""
         SELECT MATNR, KOLOR, IDNRK, POSNR
         FROM tblHANAIndeksBomLinia
@@ -243,7 +254,7 @@ def fetch_bom_for_articles(matnr_list: list) -> pd.DataFrame:
           )
         ORDER BY MATNR, POSNR
     """
-    
+
     engine = _get_sap_engine()
     try:
         with engine.connect() as conn:
@@ -253,6 +264,7 @@ def fetch_bom_for_articles(matnr_list: list) -> pd.DataFrame:
         print(f"SQL Error (BOM Kronos): {e}")
         return pd.DataFrame()
 
+
 def set_foil_report_queued(machine_name: str) -> None:
     """Powiadamia bazę (dodaje/aktualizuje wpis), że raport dla danej maszyny jest gotowy (status = 0)."""
     sql = text("""
@@ -261,13 +273,10 @@ def set_foil_report_queued(machine_name: str) -> None:
         ELSE
             INSERT INTO tblPlanowanieFoilReportsQueue (machine_name, status) VALUES (:m, 0)
     """)
-    
+
     engine = _get_sap_engine()
     try:
         with engine.begin() as conn:
             conn.execute(sql, {"m": str(machine_name).strip()})
     except Exception as e:
         print(f"Błąd SQL (Kolejka folii Kronos): {e}")
-
-
-    

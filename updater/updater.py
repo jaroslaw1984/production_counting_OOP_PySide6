@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import tempfile
 import time
+import tkinter as tk
 import zipfile
-import hashlib
 from datetime import datetime
 from pathlib import Path
-import tkinter as tk
-from tkinter import ttk, messagebox
-
+from tkinter import messagebox, ttk
 
 # =========================
 # Logging
 # =========================
+
 
 def default_log_path() -> Path:
     base = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir()))
@@ -38,6 +38,7 @@ def log(msg: str, log_path: Path) -> None:
 # =========================
 # GUI status window
 # =========================
+
 
 class UpdateWindow:
     def __init__(self) -> None:
@@ -142,6 +143,7 @@ class UpdateWindow:
 # Process helpers
 # =========================
 
+
 def pid_exists(pid: int) -> bool:
     try:
         out = subprocess.check_output(
@@ -153,7 +155,10 @@ def pid_exists(pid: int) -> bool:
     except Exception:
         return False
 
-def wait_for_pid_exit(pid: int, timeout_sec: int = 120, ui: UpdateWindow | None = None, log_path: Path | None = None) -> bool:
+
+def wait_for_pid_exit(
+    pid: int, timeout_sec: int = 120, ui: UpdateWindow | None = None, log_path: Path | None = None
+) -> bool:
     t0 = time.time()
     while pid_exists(pid):
         if ui is not None:
@@ -175,6 +180,7 @@ def wait_for_pid_exit(pid: int, timeout_sec: int = 120, ui: UpdateWindow | None 
 # Update helpers
 # =========================
 
+
 def read_latest(latest_json_path: str) -> dict:
     p = Path(latest_json_path)
     return json.loads(p.read_text(encoding="utf-8"))
@@ -195,6 +201,7 @@ def find_dir_with_exe(root: Path, exe_name: str) -> Path | None:
             return p.parent
     return None
 
+
 def verify_sha256(file_path: Path, expected_hash: str) -> bool:
     """
     Oblicza hash SHA-256 dla pliku i porównuje go z oczekiwanym.
@@ -204,17 +211,18 @@ def verify_sha256(file_path: Path, expected_hash: str) -> bool:
         return False  # Brak hasha traktujemy jako błąd weryfikacji
 
     sha256_hash = hashlib.sha256()
-    
+
     # Otwieramy plik w trybie binarnym ("rb")
     with file_path.open("rb") as f:
         # Czytamy plik paczkami po 64 KB (65536 bajtów) używając operatora morsa (walrus operator)
         while chunk := f.read(65536):
             sha256_hash.update(chunk)
-            
+
     calculated_hash = sha256_hash.hexdigest()
-    
+
     # Porównujemy ignorując wielkość liter, tak dla bezpieczeństwa
     return calculated_hash.lower() == expected_hash.strip().lower()
+
 
 def retry(action, *, attempts: int = 30, delay: float = 0.5, on_error=None):
     last = None
@@ -234,19 +242,23 @@ def clear_dir_contents(dst_dir: Path, log_path: Path, ui: UpdateWindow | None = 
         if ui is not None:
             ui.set_status(f"Usuwanie starych plików: {item.name}")
 
-        def _remove_one():
-            if item.is_dir():
-                shutil.rmtree(item)
+        # Przypisujemy item do argumentu domyślnego 'target'
+        def _remove_one(target=item):
+            if target.is_dir():
+                shutil.rmtree(target)
             else:
-                item.unlink()
+                target.unlink()
 
-        def _on_err(attempt, e):
-            log(f"remove locked attempt={attempt}: {item} | {e}", log_path)
+        # Analogicznie wiążemy 'item' jako 'target'
+        def _on_err(attempt: int, e: Exception, target=item):
+            log(f"remove locked attempt={attempt}: {target} | {e}", log_path)
 
         retry(_remove_one, attempts=40, delay=0.25, on_error=_on_err)
 
 
-def copy_dir_contents(src_dir: Path, dst_dir: Path, log_path: Path, ui: UpdateWindow | None = None) -> None:
+def copy_dir_contents(
+    src_dir: Path, dst_dir: Path, log_path: Path, ui: UpdateWindow | None = None
+) -> None:
     for item in src_dir.iterdir():
         src = item
         dst = dst_dir / item.name
@@ -279,7 +291,9 @@ def main() -> int:
     ap.add_argument("--pid", type=int, required=True, help="PID of running app")
     ap.add_argument("--latest_json", required=True, help="Path to latest.json (UNC recommended)")
     ap.add_argument("--current_dir", required=True, help="Path to current app folder (onedir)")
-    ap.add_argument("--exe_name", required=True, help="Exe file inside app folder, e.g. production-counter.exe")
+    ap.add_argument(
+        "--exe_name", required=True, help="Exe file inside app folder, e.g. production-counter.exe"
+    )
     args = ap.parse_args()
 
     ui = UpdateWindow()
@@ -303,28 +317,37 @@ def main() -> int:
         try:
             data = read_latest(args.latest_json)
         except Exception as e:
-            return fail(ui, log_path, f"Nie udało się odczytać latest.json:\n{type(e).__name__}: {e}", 3)
+            return fail(
+                ui, log_path, f"Nie udało się odczytać latest.json:\n{type(e).__name__}: {e}", 3
+            )
 
         zip_path = str(data.get("zip_path", "")).strip()
         version = str(data.get("version", "")).strip()
-        
+
         # NOWE: Pobieramy sumę kontrolną z pliku JSON
         expected_sha256 = str(data.get("sha256", "")).strip()
-        
+
         log(f"latest.version={version}", log_path)
         log(f"latest.zip_path={zip_path}", log_path)
         log(f"latest.sha256={expected_sha256}", log_path)
 
         if not zip_path or not version:
             return fail(ui, log_path, "Plik latest.json nie zawiera 'zip_path' lub 'version'.", 3)
-            
+
         # NOWE: Walidacja, czy suma kontrolna w ogóle została podana w JSONie
         if not expected_sha256:
-            return fail(ui, log_path, "Plik latest.json nie zawiera sumy kontrolnej 'sha256'. Aktualizacja zatrzymana ze względów bezpieczeństwa.", 3)        
+            return fail(
+                ui,
+                log_path,
+                "Plik latest.json nie zawiera sumy kontrolnej 'sha256'. Aktualizacja zatrzymana ze względów bezpieczeństwa.",
+                3,
+            )
         try:
             data = read_latest(args.latest_json)
         except Exception as e:
-            return fail(ui, log_path, f"Nie udało się odczytać latest.json:\n{type(e).__name__}: {e}", 3)
+            return fail(
+                ui, log_path, f"Nie udało się odczytać latest.json:\n{type(e).__name__}: {e}", 3
+            )
 
         zip_path = str(data.get("zip_path", "")).strip()
         version = str(data.get("version", "")).strip()
@@ -345,15 +368,25 @@ def main() -> int:
             copy_zip(zip_path, zip_local)
             log(f"zip_download_ok size={zip_local.stat().st_size}", log_path)
         except Exception as e:
-            return fail(ui, log_path, f"Nie udało się pobrać paczki aktualizacji:\n{type(e).__name__}: {e}", 3)
+            return fail(
+                ui,
+                log_path,
+                f"Nie udało się pobrać paczki aktualizacji:\n{type(e).__name__}: {e}",
+                3,
+            )
 
         # ==========================================
         # NOWY KROK 2.5) Weryfikacja SHA256
         # ==========================================
         ui.set_status("Weryfikacja spójności pobranej paczki...")
         if not verify_sha256(zip_local, expected_sha256):
-            return fail(ui, log_path, "Błąd weryfikacji sumy kontrolnej SHA256. Plik instalacyjny jest uszkodzony. Aktualizacja została przerwana.", 8)
-        
+            return fail(
+                ui,
+                log_path,
+                "Błąd weryfikacji sumy kontrolnej SHA256. Plik instalacyjny jest uszkodzony. Aktualizacja została przerwana.",
+                8,
+            )
+
         log("sha256_verification_ok", log_path)
         # ==========================================
 
@@ -367,12 +400,16 @@ def main() -> int:
                 z.extractall(extract_dir)
             log("extract_ok", log_path)
         except Exception as e:
-            return fail(ui, log_path, f"Nie udało się rozpakować paczki:\n{type(e).__name__}: {e}", 4)
+            return fail(
+                ui, log_path, f"Nie udało się rozpakować paczki:\n{type(e).__name__}: {e}", 4
+            )
 
         new_dir = find_dir_with_exe(extract_dir, args.exe_name)
         log(f"find_dir_with_exe={new_dir}", log_path)
         if not new_dir:
-            return fail(ui, log_path, f"Nie znalazłem pliku {args.exe_name} w rozpakowanej paczce.", 4)
+            return fail(
+                ui, log_path, f"Nie znalazłem pliku {args.exe_name} w rozpakowanej paczce.", 4
+            )
 
         new_dir = new_dir.resolve()
         log(f"new_dir_resolved={new_dir}", log_path)
@@ -382,11 +419,19 @@ def main() -> int:
         ok = wait_for_pid_exit(args.pid, timeout_sec=120, ui=ui, log_path=log_path)
         log(f"wait_for_pid_exit ok={ok} pid_exists_after={pid_exists(args.pid)}", log_path)
         if not ok and pid_exists(args.pid):
-            return fail(ui, log_path, "Poprzednia wersja programu nadal działa. Aktualizacja została przerwana.", 7)
+            return fail(
+                ui,
+                log_path,
+                "Poprzednia wersja programu nadal działa. Aktualizacja została przerwana.",
+                7,
+            )
 
         # 5) swap IN PLACE
         try:
-            log(f"pre-swap current_dir_exists={current_dir.exists()} is_dir={current_dir.is_dir()}", log_path)
+            log(
+                f"pre-swap current_dir_exists={current_dir.exists()} is_dir={current_dir.is_dir()}",
+                log_path,
+            )
             log(f"pre-swap new_dir_exists={new_dir.exists()} is_dir={new_dir.is_dir()}", log_path)
 
             time.sleep(0.5)
@@ -403,7 +448,9 @@ def main() -> int:
 
             log("swap_ok", log_path)
         except Exception as e:
-            return fail(ui, log_path, f"Podmiana plików nie powiodła się:\n{type(e).__name__}: {e}", 5)
+            return fail(
+                ui, log_path, f"Podmiana plików nie powiodła się:\n{type(e).__name__}: {e}", 5
+            )
 
         # 6) start new version
         ui.set_status("Uruchamianie nowej wersji programu...")
@@ -417,7 +464,9 @@ def main() -> int:
             subprocess.Popen([str(exe_path)], cwd=str(current_dir), close_fds=True)
             log("start_ok", log_path)
         except Exception as e:
-            return fail(ui, log_path, f"Nie udało się uruchomić nowej wersji:\n{type(e).__name__}: {e}", 6)
+            return fail(
+                ui, log_path, f"Nie udało się uruchomić nowej wersji:\n{type(e).__name__}: {e}", 6
+            )
         finally:
             try:
                 safe_rmtree(tmp_root)

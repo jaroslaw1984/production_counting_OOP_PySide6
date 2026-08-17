@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pandas as pd
 
-
 ORDER_ALIASES = [
-    "zlecenie", "nr zlecenia", "zlecenie nr",
-    "auftrag", "auftragsnr", "auftragsnummer",
-    "order", "order id"
+    "zlecenie",
+    "nr zlecenia",
+    "zlecenie nr",
+    "auftrag",
+    "auftragsnr",
+    "auftragsnummer",
+    "order",
+    "order id",
 ]
 
 GRUNDPROFIL_ALIASES = [
-    "grundprofil", "grund profil", "grund-profil",
-    "podkład", "podklad", "profil podstawowy"
+    "grundprofil",
+    "grund profil",
+    "grund-profil",
+    "podkład",
+    "podklad",
+    "profil podstawowy",
 ]
 
 
@@ -75,7 +84,7 @@ def cut_from_order(df: pd.DataFrame, start_order_id: str) -> pd.DataFrame:
     hits = df.index[df["order_id"] == start_order_id].tolist()
     if not hits:
         raise ValueError(f"Nie znaleziono startowego zlecenia: {start_order_id}")
-    return df.loc[hits[0]:].reset_index(drop=True)
+    return df.loc[hits[0] :].reset_index(drop=True)
 
 
 def build_sequence(df: pd.DataFrame) -> list[str]:

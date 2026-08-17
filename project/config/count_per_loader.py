@@ -1,14 +1,17 @@
-import pandas as pd
-import pyodbc
 import urllib.parse
 from typing import cast
+
+import pandas as pd
+import pyodbc
 from sqlalchemy import create_engine
+
 from project.config.paths import PROFILES_TABLE
 
 PLAN_SERVER = "kronos.sip.local"
 PLAN_DB = "Raporty"
 PLAN_TABLE = "dbo.tblPlanowanieWorkplaces"
-SAP_TABLE = "dbo.HANA_ZMDRS_RAPORT"   # <- jeśli to view, też OK
+SAP_TABLE = "dbo.HANA_ZMDRS_RAPORT"  # <- jeśli to view, też OK
+
 
 def _pick_driver() -> str:
     drivers = pyodbc.drivers()
@@ -16,6 +19,7 @@ def _pick_driver() -> str:
         if name in drivers:
             return name
     raise RuntimeError(f"No SQL Server ODBC driver found. Available: {drivers}")
+
 
 def _get_plan_engine():
     driver = _pick_driver()
@@ -31,13 +35,15 @@ def _get_plan_engine():
     # Tworzymy silnik z wbudowaną optymalizacją dla wielu rekordów!
     return create_engine(f"mssql+pyodbc:///?odbc_connect={quoted_conn_str}", fast_executemany=True)
 
+
 def fetch_workplace_config() -> pd.DataFrame:
     sql = f"SELECT workplace, speed_m_per_min, count_by_shift FROM {PLAN_TABLE}"
     engine = _get_plan_engine()
-    
+
     # --- # Pandas woli dostać po prostu engine. Sam zarządza otwarciem i zamknięciem. ---
     df = pd.read_sql(sql, engine)
     return df
+
 
 def insert_missing_workplaces(df_missing: pd.DataFrame) -> None:
     """
@@ -64,7 +70,8 @@ def insert_missing_workplaces(df_missing: pd.DataFrame) -> None:
         cur = conn.cursor()
         cur.executemany(sql, rows)
         conn.commit()
-        
+
+
 def update_count_by_shift(workplace: str, count_by_shift: int) -> None:
     sql = f"UPDATE {PLAN_TABLE} SET count_by_shift = ? WHERE workplace = ?"
     engine = _get_plan_engine()
@@ -73,6 +80,7 @@ def update_count_by_shift(workplace: str, count_by_shift: int) -> None:
         cur.execute(sql, (int(count_by_shift), str(workplace).strip()))
         conn.commit()
 
+
 def update_speed(workplace: str, speed_m_per_min: float) -> None:
     sql = f"UPDATE {PLAN_TABLE} SET speed_m_per_min = ? WHERE workplace = ?"
     engine = _get_plan_engine()
@@ -80,7 +88,8 @@ def update_speed(workplace: str, speed_m_per_min: float) -> None:
         cur = conn.cursor()
         cur.execute(sql, (float(speed_m_per_min), str(workplace).strip()))
         conn.commit()
-        
+
+
 # --- project/config/count_per_loader.py ---
 def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
     """
@@ -101,14 +110,15 @@ def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
     df["INDEKS"] = df["INDEKS"].astype("string").str.strip()
     df["JM"] = df["JM"].astype("string").str.strip()
     df["LINIA"] = df["LINIA"].astype("string").str.strip()
-    df["ILOSC"] = (
-        df["ILOSC"].astype("string").str.replace(",", ".", regex=False)
-    )
+    df["ILOSC"] = df["ILOSC"].astype("string").str.replace(",", ".", regex=False)
     df["ILOSC"] = pd.to_numeric(df["ILOSC"], errors="coerce").fillna(0.0)
 
     # --- agregacja: na wszelki wypadek sumujemy metry, bo czasem index może się powtórzyć ---
-    df_sum = cast(pd.DataFrame, df.groupby(["INDEKS", "JM", "LINIA"], as_index=False)["ILOSC"].sum())
+    df_sum = cast(
+        pd.DataFrame, df.groupby(["INDEKS", "JM", "LINIA"], as_index=False)["ILOSC"].sum()
+    )
     return df_sum
+
 
 def add_workplace(workplace: str, speed_m_per_min: float, count_by_shift: float) -> bool:
     """Dodaje nową maszynę do bazy danych (INSERT)."""
@@ -117,12 +127,15 @@ def add_workplace(workplace: str, speed_m_per_min: float, count_by_shift: float)
     try:
         with engine.raw_connection() as conn:
             cur = conn.cursor()
-            cur.execute(sql, (str(workplace).strip(), float(speed_m_per_min), float(count_by_shift)))
+            cur.execute(
+                sql, (str(workplace).strip(), float(speed_m_per_min), float(count_by_shift))
+            )
             conn.commit()
         return True
     except Exception as e:
         print(f"Błąd SQL (INSERT): {e}")
         return False
+
 
 def update_workplace_full(workplace: str, speed_m_per_min: float, count_by_shift: float) -> bool:
     """Aktualizuje prędkość i sztuki dla istniejącej maszyny (UPDATE)."""
@@ -131,12 +144,15 @@ def update_workplace_full(workplace: str, speed_m_per_min: float, count_by_shift
     try:
         with engine.raw_connection() as conn:
             cur = conn.cursor()
-            cur.execute(sql, (float(speed_m_per_min), float(count_by_shift), str(workplace).strip()))
+            cur.execute(
+                sql, (float(speed_m_per_min), float(count_by_shift), str(workplace).strip())
+            )
             conn.commit()
         return True
     except Exception as e:
         print(f"Błąd SQL (UPDATE): {e}")
         return False
+
 
 def delete_workplace(workplace: str) -> bool:
     """Usuwa maszynę z bazy danych (DELETE)."""
@@ -152,6 +168,7 @@ def delete_workplace(workplace: str) -> bool:
         print(f"Błąd SQL (DELETE): {e}")
         return False
 
+
 def fetch_profiles_config() -> pd.DataFrame:
     """Pobiera konfigurację profili i czasów zbrojeń z bazy danych."""
     sql = f"SELECT profile, side, setting_time FROM {PROFILES_TABLE}"
@@ -163,18 +180,19 @@ def fetch_profiles_config() -> pd.DataFrame:
     except Exception as e:
         print(f"Błąd SQL (Odczyt profili): {e}")
         # Zwracamy pusty DataFrame w razie błędu (np. brak dostępu)
-        return pd.DataFrame() 
-    
+        return pd.DataFrame()
+
+
 def save_profile_to_db(profile: str, side: str, setting_time: int) -> bool:
     """Zapisuje nowy lub aktualizuje istniejący profil w bazie danych."""
     # Wymuszamy format zgodny z bazą (np. '0021')
     profile_clean = str(profile).strip()
     side_clean = str(side).strip().zfill(4)
-    
+
     check_sql = f"SELECT COUNT(*) FROM {PROFILES_TABLE} WHERE profile = ? AND side = ?"
     update_sql = f"UPDATE {PROFILES_TABLE} SET setting_time = ? WHERE profile = ? AND side = ?"
     insert_sql = f"INSERT INTO {PROFILES_TABLE} (profile, side, setting_time) VALUES (?, ?, ?)"
-    
+
     engine = _get_plan_engine()
     try:
         with engine.raw_connection() as conn:
@@ -182,7 +200,7 @@ def save_profile_to_db(profile: str, side: str, setting_time: int) -> bool:
             cur.execute(check_sql, (profile_clean, side_clean))
             row = cur.fetchone()
             exists = row[0] > 0 if row else False
-            
+
             if exists:
                 cur.execute(update_sql, (setting_time, profile_clean, side_clean))
             else:
@@ -193,11 +211,12 @@ def save_profile_to_db(profile: str, side: str, setting_time: int) -> bool:
         print(f"Błąd SQL (Zapis profilu): {e}")
         return False
 
+
 def delete_profile_from_db(profile: str, side: str) -> bool:
     """Usuwa profil z bazy danych."""
     profile_clean = str(profile).strip()
     side_clean = str(side).strip().zfill(4)
-    
+
     sql = f"DELETE FROM {PROFILES_TABLE} WHERE profile = ? AND side = ?"
     engine = _get_plan_engine()
     try:
@@ -206,11 +225,13 @@ def delete_profile_from_db(profile: str, side: str) -> bool:
             cur.execute(sql, (profile_clean, side_clean))
             deleted_rows = cur.rowcount  # Sprawdzamy, ile wierszy faktycznie usunięto
             conn.commit()
-            
+
         if deleted_rows == 0:
-            print(f"UWAGA SQL: Próbowano usunąć {profile_clean} ({side_clean}), ale nie znaleziono takiego wpisu w bazie.")
+            print(
+                f"UWAGA SQL: Próbowano usunąć {profile_clean} ({side_clean}), ale nie znaleziono takiego wpisu w bazie."
+            )
             return False
-            
+
         return True
     except Exception as e:
         print(f"Błąd SQL (Usuwanie profilu): {e}")

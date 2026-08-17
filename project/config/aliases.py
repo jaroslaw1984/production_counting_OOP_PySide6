@@ -1,16 +1,28 @@
 # --- aliasy ---
 ORDER_ALIASES = [
-    "zlecenie", "nr zlecenia", "zlecenie nr",
-    "auftrag", "auftragsnr", "auftragsnummer",
-    "order", "order id"
+    "zlecenie",
+    "nr zlecenia",
+    "zlecenie nr",
+    "auftrag",
+    "auftragsnr",
+    "auftragsnummer",
+    "order",
+    "order id",
 ]
 
 GRUNDPROFIL_ALIASES = [
-    "grundprofil", "grund profil", "grund-profil",
-    "podkład", "podklad", "profil podstawowy"
+    "grundprofil",
+    "grund profil",
+    "grund-profil",
+    "podkład",
+    "podklad",
+    "profil podstawowy",
 ]
 
 ARTICLE_ALIASES = ["artykuł", "artykul", "artikel", "article", "item", "material", "indeks"]
 
-GOOD_PRODUKTION_ALIASES = ["Ilość dobrej produkcji (P)", "Ilość dobrej produkcji(P)",
-                           "Ilość dobrej produkcji P",]
+GOOD_PRODUKTION_ALIASES = [
+    "Ilość dobrej produkcji (P)",
+    "Ilość dobrej produkcji(P)",
+    "Ilość dobrej produkcji P",
+]

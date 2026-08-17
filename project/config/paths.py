@@ -4,7 +4,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 APP_ICON_PATH = BASE_DIR.parent / "assets" / "production_counter_icon.ico"
 
-# --- stała ścieżka do pliku konfiguracyjnego --- 
+# --- stała ścieżka do pliku konfiguracyjnego ---
 CONFIG_PATH = BASE_DIR / "config" / "profile_config.csv"
 MACHINE_CONFIG_PATH = BASE_DIR / "config" / "machine_config.csv"
 DOUBLE_SIDED_MACHINES_PATH = BASE_DIR / "config" / "double_sided_machines.json"
@@ -29,4 +29,4 @@ SAP_DATABASE = "Raporty"
 PROFILES_TABLE = "dbo.tblPlanowanieProfilesSetAndTime"
 
 # --- ścieżka do szablonu raportu DOCX ---
-REPORT_TEMPLATE_PATH = BASE_DIR / "core"/ "logic" / "templates" / "report_template.docx"
+REPORT_TEMPLATE_PATH = BASE_DIR / "core" / "logic" / "templates" / "report_template.docx"
