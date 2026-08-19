@@ -68,15 +68,22 @@ def load_hydra_queue(xlsx_path: str | Path) -> pd.DataFrame:
     order_col = find_column(df, ORDER_ALIASES)
     gp_col = find_column(df, GRUNDPROFIL_ALIASES)
 
-    out = df[[order_col, gp_col]].copy()
-    out = out.rename(columns={order_col: "order_id", gp_col: "grundprofil"})
+    # 1. Wycinamy kolumny przez .loc i gwarantujemy linterowi, że to DataFrame
+    out = df.loc[:, [order_col, gp_col]].copy()
+    assert isinstance(out, pd.DataFrame)
+
+    # 2. Nadpisujemy nazwy bezpośrednio (ominięcie problematycznego .rename)
+    out.columns = ["order_id", "grundprofil"]
 
     out["order_id"] = out["order_id"].astype("string").str.strip()
     out["grundprofil"] = out["grundprofil"].astype("string").str.strip()
 
-    # tylko sensowne wiersze
-    out = out[(out["order_id"] != "") & (out["grundprofil"] != "")]
-    return out.reset_index(drop=True)
+    # 3. Odfiltrowujemy puste wiersze
+    filtered_out = out.loc[(out["order_id"] != "") & (out["grundprofil"] != "")]
+
+    # 4. Ponownie uspokajamy linter przed samym zwróceniem wyniku
+    assert isinstance(filtered_out, pd.DataFrame)
+    return filtered_out.reset_index(drop=True)
 
 
 def cut_from_order(df: pd.DataFrame, start_order_id: str) -> pd.DataFrame:
