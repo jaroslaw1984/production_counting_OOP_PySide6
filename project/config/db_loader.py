@@ -44,34 +44,6 @@ def _get_sap_engine():
     return create_engine(f"mssql+pyodbc:///?odbc_connect={quoted_conn_str}")
 
 
-def _connect_hydra() -> pyodbc.Connection:
-    driver = _pick_driver()  # <- dopiero teraz, na żądanie
-    # Uwaga: czasem w firmach jest driver 17 albo 18.
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={SERVER};"
-        f"DATABASE={DATABASE};"
-        "Trusted_Connection=yes;"
-        "Encrypt=yes;"
-        "TrustServerCertificate=yes;"
-    )
-
-    return pyodbc.connect(conn_str)
-
-
-def _connect_sap() -> pyodbc.Connection:
-    driver = _pick_driver()
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={SAP_SERVER};"
-        f"DATABASE={SAP_DATABASE};"
-        "Trusted_Connection=yes;"
-        "Encrypt=yes;"
-        "TrustServerCertificate=yes;"
-    )
-    return pyodbc.connect(conn_str)
-
-
 def fetch_available_machines() -> list[str]:
     sql = f"""
         SELECT DISTINCT masch_nr
@@ -194,7 +166,10 @@ def normalize_db_df(df: pd.DataFrame) -> pd.DataFrame:
         if col in out.columns:
             # jeśli przyjdzie jako tekst "58,5" -> zamiana
             out[col] = out[col].astype("string").str.replace(",", ".", regex=False)
-            out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
+
+            # Gwarantujemy Series linterowi
+            safe_series = pd.Series(pd.to_numeric(out[col], errors="coerce"))
+            out[col] = safe_series.fillna(0.0)
 
     # 4) remaining: dla U/L liczymy soll - gut; dla V też wyjdzie soll - 0 (OK)
     out["remaining_p"] = (out["target_value_p"] - out["good_qty_p"]).clip(lower=0.0)
@@ -207,8 +182,12 @@ def normalize_db_df(df: pd.DataFrame) -> pd.DataFrame:
         out["remaining_pcs"] = (
             out["soll_menge_sek"].astype("string").str.replace(",", ".", regex=False)
         )
+
+        # --- Owijamy wynik z to_numeric w bezpieczne pd.Series, aby użyć fillna ---
+        safe_remaining = pd.Series(pd.to_numeric(out["remaining_pcs"], errors="coerce"))
+
         out["remaining_pcs"] = (
-            pd.to_numeric(out["remaining_pcs"], errors="coerce").fillna(0) - out["good_qty_pcs"]
+            safe_remaining.fillna(0) - out["good_qty_pcs"]
         ).clip(lower=0)
 
     return out
@@ -226,10 +205,15 @@ def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
     with engine.connect() as conn:
         df = pd.read_sql(sql, conn, params={"linia_p": linia, "day_p": day})
 
+    if df is None:
+        return pd.DataFrame()
+
     if not df.empty:
         df["INDEKS"] = df["INDEKS"].astype("string").str.strip()
         df["ILOSC"] = df["ILOSC"].astype("string").str.replace(",", ".", regex=False)
-        df["ILOSC"] = pd.to_numeric(df["ILOSC"], errors="coerce").fillna(0.0)
+
+        safe_ilosc = pd.Series(pd.to_numeric(df["ILOSC"], errors="coerce"))
+        df["ILOSC"] = safe_ilosc.fillna(0.0)
 
     return df
 
@@ -248,7 +232,7 @@ def fetch_bom_for_articles(matnr_list: list) -> pd.DataFrame:
         FROM tblHANAIndeksBomLinia
         WHERE MATNR IN ('{matnr_str}')
           AND (
-              IDNRK LIKE 'F%' 
+              IDNRK LIKE 'F%'
               OR POSNR IN ('0050', '0060', '0090')
               OR (POSNR IN ('0020', '0030', '0070') AND IDNRK LIKE '0000%')
           )

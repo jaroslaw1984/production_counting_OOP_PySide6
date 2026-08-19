@@ -242,7 +242,8 @@ def delete_profile_from_db(profile: str, side: str) -> bool:
 
         if deleted_rows == 0:
             print(
-                f"UWAGA SQL: Próbowano usunąć {profile_clean} ({side_clean}), ale nie znaleziono takiego wpisu w bazie."
+                f"UWAGA SQL: Próbowano usunąć {profile_clean} ({side_clean}),\n"
+                "ale nie znaleziono takiego wpisu w bazie."
             )
             return False
 
