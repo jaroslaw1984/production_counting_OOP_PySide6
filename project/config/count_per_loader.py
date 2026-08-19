@@ -58,11 +58,22 @@ def insert_missing_workplaces(df_missing: pd.DataFrame) -> None:
         VALUES (?, ?, ?)
     """
 
+    # Gwarantujemy zmianę wszystkich Pandasowych NaN na pythonowe None przed pętlą
+    df_clean = df_missing.where(pd.notna(df_missing), None)
+
     rows = []
-    for _, r in df_missing.iterrows():
+
+    # TRIK: Zrzucamy dane do natywnej listy słowników Pythona.
+    # Pozbywamy się iterrows() i zamykamy usta linterowi.
+    for r in df_clean.to_dict('records'):
         wp = str(r["workplace"]).strip()
-        sp = float(r["speed_m_per_min"]) if pd.notna(r["speed_m_per_min"]) else None
-        cb = int(r["count_by_shift"]) if pd.notna(r["count_by_shift"]) else None
+
+        sp_raw = r["speed_m_per_min"]
+        sp = float(sp_raw) if sp_raw is not None else None
+
+        cb_raw = r["count_by_shift"]
+        cb = int(cb_raw) if cb_raw is not None else None
+
         rows.append((wp, sp, cb))
 
     engine = _get_plan_engine()
@@ -111,7 +122,10 @@ def fetch_sap_basic_profiles(linia: str, day) -> pd.DataFrame:
     df["JM"] = df["JM"].astype("string").str.strip()
     df["LINIA"] = df["LINIA"].astype("string").str.strip()
     df["ILOSC"] = df["ILOSC"].astype("string").str.replace(",", ".", regex=False)
-    df["ILOSC"] = pd.to_numeric(df["ILOSC"], errors="coerce").fillna(0.0)
+
+    # Owijamy w pd.Series, aby linter nie miał wątpliwości, że obiekt ma metodę fillna()
+    ilosc_series = pd.Series(pd.to_numeric(df["ILOSC"], errors="coerce"))
+    df["ILOSC"] = ilosc_series.fillna(0.0)
 
     # --- agregacja: na wszelki wypadek sumujemy metry, bo czasem index może się powtórzyć ---
     df_sum = cast(
