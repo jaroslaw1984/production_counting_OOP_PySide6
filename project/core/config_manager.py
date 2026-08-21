@@ -9,7 +9,7 @@ from project.config.count_per_loader import (
     fetch_profiles_config,
     save_profile_to_db,
 )
-from project.config.workplace_config_provider import _normalize_profiles_db_df
+from project.config.workplace_config_provider import normalize_profiles_db_df
 
 
 class ConfigDataManager:
@@ -130,7 +130,7 @@ class ConfigDataManager:
                 return []
 
             # 2. Użycie Twojej istniejącej funkcji do normalizacji (czyszczenie spacji, int dla czasu)
-            df = _normalize_profiles_db_df(df)
+            df = normalize_profiles_db_df(df)
 
             if "setting_time" not in df.columns:
                 print("BŁĄD: Brak kolumny 'setting_time' w pobranych danych SQL!")

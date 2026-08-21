@@ -11,8 +11,8 @@ from deploy.paths import BUILD_PATH, LATEST_JSON_PATH
 
 class ReleaseBuilder:
     def __init__(self, version: str, notes: str, log_callback, done_callback):
-        self.version = version
-        self.notes = notes
+        self.version: str = version
+        self.notes: str = notes
 
         # Funkcje zwrotne (callbacks) do komunikacji z GUI
         self.log = log_callback
