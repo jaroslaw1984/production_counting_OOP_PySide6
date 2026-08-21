@@ -1,0 +1,36 @@
+/* Tło dla całego głównego okna (kolor CustomTkinter 'Dark') */
+QMainWindow {
+    background-color: #242424;
+}
+
+/* Lewy panel nawigacyjny - lekko jaśniejszy, aby odciąć się od tła */
+#LeftPanel {
+    background-color: #2b2b2b;
+    border-right: 1px solid #1e1e1e;
+}
+
+/* Prawy panel - obszar główny raportów */
+#RightPanel {
+    background-color: #242424;
+}
+
+/* Globalny styl dla wszystkich przycisków w aplikacji */
+QPushButton {
+    background-color: #1f6aa5; /* Natywny błękitny z CTk */
+    color: white;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-family: "Segoe UI";
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+}
+
+/* Zmiana koloru przycisku po najechaniu myszką */
+QPushButton:hover {
+    background-color: #144a73;
+}
+
+QPushButton:pressed {
+    background-color: #0d324d;
+}
