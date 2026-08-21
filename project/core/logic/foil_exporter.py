@@ -274,7 +274,7 @@ class FoilExporter:
         foil_prefix = parts[0]
         try:
             width = int(parts[-1])
-        except ValueError, IndexError:
+        except (ValueError, IndexError):
             width = 0
 
         return foil_prefix, width
