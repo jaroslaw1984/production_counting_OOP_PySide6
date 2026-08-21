@@ -641,9 +641,10 @@ class MainWindow:
             header_row.pack(fill="x")
             header_row.pack_propagate(False)  # Blokuje zmianę wysokości
 
+            # ZMIANA: m_data["name"] -> m_data.name
             lbl_name = ctk.CTkLabel(
                 header_row,
-                text=m_data["name"],
+                text=m_data.name,
                 font=ctk.CTkFont(size=16, weight="bold"),
                 text_color=("#1f6aa5", "#7ba1c7"),
             )
@@ -654,7 +655,8 @@ class MainWindow:
             content_frame.pack(fill="x", padx=15, pady=10)
 
             # Wiersze z danymi (Klucz: Wartość)
-            for key, val in m_data["details"]:
+            # ZMIANA: m_data["details"] -> m_data.details
+            for key, val in m_data.details:
                 row = ctk.CTkFrame(content_frame, fg_color="transparent")
                 row.pack(fill="x", pady=2)
 
@@ -678,10 +680,11 @@ class MainWindow:
                 lbl_v.pack(side="left", fill="x", expand=True)
 
             # Ostrzeżenia (Pomarańczowy akcent)
-            if m_data.get("warning"):
+            # ZMIANA: hasattr i getattr lub m_data.warning
+            if m_data.warning:
                 warn_lbl = ctk.CTkLabel(
                     card,
-                    text=m_data["warning"].strip(),
+                    text=m_data.warning.strip(),
                     text_color=("#c86400", "#e68a00"),
                     font=ctk.CTkFont(size=12, slant="italic"),
                     justify="left",
@@ -689,7 +692,8 @@ class MainWindow:
                 warn_lbl.pack(anchor="w", padx=15, pady=(0, 10))
 
             # Stopka Terminu (Zielony akcent)
-            if m_data.get("end"):
+            # ZMIANA: m_data.end
+            if m_data.end:
                 end_frame = ctk.CTkFrame(card, fg_color=("#d4edda", "#1c3b24"), corner_radius=6)
                 end_frame.pack(fill="x", padx=15, pady=(5, 15))
 
@@ -703,7 +707,7 @@ class MainWindow:
 
                 end_val = ctk.CTkLabel(
                     end_frame,
-                    text=m_data["end"],
+                    text=m_data.end,
                     font=ctk.CTkFont(size=14, weight="bold"),
                     text_color=("#0c3815", "#a3e5b3"),
                 )
