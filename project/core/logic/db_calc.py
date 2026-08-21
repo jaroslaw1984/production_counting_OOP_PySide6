@@ -29,10 +29,13 @@ def build_db_report_pieces(
             continue
 
         # --- obliczenia produkcji ---
-        target_value = pd.to_numeric(df_one["target_value_pcs"], errors="coerce").fillna(0)
-        good_qty = pd.to_numeric(df_one["good_qty_pcs"], errors="coerce").fillna(0)
+        safe_target = pd.Series(pd.to_numeric(df_one["target_value_pcs"], errors="coerce"))
+        target_value = safe_target.fillna(0)
 
-        remaining = (target_value - good_qty).clip(lower=0)
+        safe_good = pd.Series(pd.to_numeric(df_one["good_qty_pcs"], errors="coerce"))
+        good_qty = safe_good.fillna(0)
+
+        remaining = pd.Series(target_value - good_qty).clip(lower=0)
         total_remaining = float(remaining.sum())
 
         pps = int(pps_by_machine.get(machine, 0))
@@ -46,10 +49,11 @@ def build_db_report_pieces(
 
         # --- zbrojenia (tak samo jak Excel) ---
         # normalizacja kluczy
-        df_one["profile"] = (
-            df_one["profile"].astype("string").str.strip().str.split("-", n=1).str[0]
-        )
-        df_one["side"] = df_one["side"].astype("string").str.strip().str.zfill(4)
+        profile_s = pd.Series(df_one["profile"]).astype("string")
+        df_one["profile"] = profile_s.str.strip().str.split("-", n=1).str[0]
+
+        side_s = pd.Series(df_one["side"]).astype("string")
+        df_one["side"] = side_s.str.strip().str.zfill(4)
 
         cfg = df_cfg.copy()
         cfg["profile"] = cfg["profile"].astype("string").str.strip()
@@ -64,16 +68,17 @@ def build_db_report_pieces(
 
         missing = df_one[df_one["setting_time"].isna()]
         if not missing.empty:
-            sample = missing[["profile", "side"]].drop_duplicates().head(15)
+            missing_slice = missing.loc[:, ["profile", "side"]].copy()
+            assert isinstance(missing_slice, pd.DataFrame)
+            sample = missing_slice.drop_duplicates().head(15)
             lines.append(
                 "⚠️ Brak czasu zbrojenia w pliku profile_config.csv dla kluczy 'profile, side':"
             )
             lines.append(sample.to_string(index=False))
             # i dopiero wtedy fillna(0) żeby program nie padł
 
-        df_one["setting_time"] = (
-            pd.to_numeric(df_one["setting_time"], errors="coerce").fillna(0).astype(int)
-        )
+        safe_setting_time = pd.Series(pd.to_numeric(df_one["setting_time"], errors="coerce"))
+        df_one["setting_time"] = safe_setting_time.fillna(0).astype(int)
 
         # # --- ZBROJENIA: liczymy ZMIANY w kolejności (bloki), nie unikalne wartości ---
         # # --- ważne: DB czasem nie jest posortowane – sortuj po zleceniu (jeśli masz) ---
@@ -125,7 +130,7 @@ def build_db_report_pieces(
 
         # 2. Szukamy unikalnych zbrojeń (bo po posortowaniu SQL bloki są zniszczone)
         unique_setups = df_one[["profile", "side", "setting_time"]].drop_duplicates(
-            subset=["profile", "side"]
+            subset=["profile", "side"] # type: ignore
         )
 
         # 3. Odrzucamy pierwsze zbrojenie (Twoja żelazna zasada z produkcji)
@@ -137,8 +142,12 @@ def build_db_report_pieces(
         # 4. Liczymy tylko te z czasem > 0
         real_setups = real_setups[real_setups["setting_time"] > 0]
 
-        setup_count = int(real_setups["setting_time"].count())
-        setup_min = float(real_setups["setting_time"].sum())
+        # Zamiast .count() używamy bezpiecznego len()
+        setup_count = len(real_setups)
+
+        # Gwarantujemy linterowi, że to Series przed wykonaniem .sum()
+        safe_real_setups_time = pd.Series(real_setups["setting_time"])
+        setup_min = float(safe_real_setups_time.sum())
         setup_shifts = setup_min / (8 * 60)
 
         # --- zmiany: produkcja + zbrojenia ---
