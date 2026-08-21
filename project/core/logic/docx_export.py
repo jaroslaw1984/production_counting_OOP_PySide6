@@ -1,6 +1,8 @@
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -10,7 +12,7 @@ from project.config.paths import REPORT_TEMPLATE_PATH
 
 
 # --- funkcje eksportu/drukowania/edycji raportu DOCX ---
-def export_report_docx(report_data: dict, template_path: Path | None = None) -> Path:
+def export_report_docx(report_data: dict[str, Any], template_path: Path | None = None) -> Path:
     """Generuje DOCX na bazie template. Zwraca ścieżkę do wygenerowanego pliku."""
     if not report_data:
         raise ValueError("Brak danych raportu (report_data).")

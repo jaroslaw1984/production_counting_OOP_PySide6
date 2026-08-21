@@ -82,7 +82,7 @@ class SmartPlanMatcher:
         )
 
         # --- interesują nas tylko 0021 i 0022 ---
-        tmp = tmp[tmp["side"].isin({"0021", "0022"})].copy()
+        tmp = tmp[tmp["side"].isin(["0021", "0022"])].copy()
         if tmp.empty:
             return
 
@@ -116,7 +116,8 @@ class SmartPlanMatcher:
         tmp = self.df_hydra.copy()
         tmp["grundprofil"] = tmp["grundprofil"].astype("string").str.strip()
         tmp["side"] = tmp["side"].astype("string").str.strip().str.zfill(4)
-        tmp["order_id"] = self._normalize_order_id_series(tmp["order_id"])
+        tmp_order_s = pd.Series(tmp["order_id"])
+        tmp["order_id"] = self._normalize_order_id_series(tmp_order_s)
 
         blocks = []
         prev = None
@@ -170,7 +171,8 @@ class SmartPlanMatcher:
         # --- baza profilu z planu (np. "HO8030") ---
         dfx["index_base"] = dfx[profile_col].astype("string").str.strip().str.split("-", n=1).str[0]
 
-        dfx["order_id"] = self._normalize_order_id_series(dfx["order_id"])
+        dfx_order_s = pd.Series(dfx["order_id"])
+        dfx["order_id"] = self._normalize_order_id_series(dfx_order_s)
 
         # --- normalizujemy stronę w planie produkcji ---
         if "side" in dfx.columns:
@@ -184,10 +186,12 @@ class SmartPlanMatcher:
         else:
             dfx["side_norm"] = "0021"
 
-        target_p = pd.to_numeric(dfx["target_value_p"], errors="coerce").fillna(0.0)
+        safe_target = pd.Series(pd.to_numeric(dfx["target_value_p"], errors="coerce"))
+        target_p = safe_target.fillna(0.0)
 
         if "good_qty_p" in dfx.columns:
-            good_p = pd.to_numeric(dfx["good_qty_p"], errors="coerce").fillna(0.0)
+            safe_good = pd.Series(pd.to_numeric(dfx["good_qty_p"], errors="coerce"))
+            good_p = safe_good.fillna(0.0)
         else:
             good_p = pd.Series(0.0, index=dfx.index)
 
@@ -216,7 +220,7 @@ class SmartPlanMatcher:
             # --- twardo filtrowanie po bazie, zleceniach i stronie ---
             m = dfx.loc[
                 (dfx["index_base"] == gp_base)
-                & (dfx["order_id"].isin(orders))
+                & (dfx["order_id"].isin(list(orders)))  # <--- Gwarantujemy linterowi listę
                 & (dfx["side_norm"] == b_side),
                 "_m",
             ].sum()
@@ -243,18 +247,25 @@ class SmartPlanMatcher:
             # --- wyciąganie użytkownika i daty z pierwszego napotkanego wiersza ---
             if not self.sap_user and "USER" in self.df_sap.columns:
                 u = r.get("USER")
-                if pd.notna(u) and str(u).strip():
-                    self.sap_user = str(u).strip()
+                if u is not None:
+                    text_u = str(u).strip()
+                    if text_u and text_u.lower() not in ("nan", "<na>", "nat"):
+                        self.sap_user = text_u
 
             if not self.sap_date and "DATA" in self.df_sap.columns:
                 d = r.get("DATA")
-                if pd.notna(d) and str(d).strip():
-                    self.sap_date = str(d).strip()
+                if d is not None:
+                    text_d = str(d).strip()
+                    if text_d and text_d.lower() not in ("nan", "<na>", "nat"):
+                        self.sap_date = text_d
 
             # --- parsowanie ilości (ochrona przed przecinkami i NaN) ---
             qty = r.get("ILOSC", 0)
-            if isinstance(qty, str):
+            if qty is None:
+                qty = 0.0
+            elif isinstance(qty, str):
                 qty = qty.replace(",", ".")
+
             try:
                 qty = float(qty)
             except Exception:
@@ -262,6 +273,9 @@ class SmartPlanMatcher:
 
             # --- parsowanie sztuk ---
             szt = r.get("IL_SZT", 0)
+            if szt is None:
+                szt = 0
+
             try:
                 szt = int(szt)
             except Exception:
