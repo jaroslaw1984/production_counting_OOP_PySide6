@@ -30,3 +30,6 @@ PROFILES_TABLE = "dbo.tblPlanowanieProfilesSetAndTime"
 
 # --- ścieżka do szablonu raportu DOCX ---
 REPORT_TEMPLATE_PATH = BASE_DIR / "core" / "logic" / "templates" / "report_template.docx"
+
+# Ścieżka do stylów PySide6
+STYLE_PATH = BASE_DIR / "assets" / "style.qss"
