@@ -7,6 +7,9 @@ from project.GUI.main_windows import MainWindow # lub nowa nazwa pliku okna PySi
 
 def main() -> None:
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    print(f"Szukam pliku stylów dokładnie tutaj: {STYLE_PATH.absolute()}")
 
     # Wczytanie globalnego wyglądu z pliku QSS za pomocą bezpiecznej ścieżki
     if STYLE_PATH.exists():

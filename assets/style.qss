@@ -1,32 +1,35 @@
-/* Tło dla całego głównego okna (kolor CustomTkinter 'Dark') */
+/* assets/style.qss */
 QMainWindow {
     background-color: #242424;
 }
 
-/* Lewy panel nawigacyjny - lekko jaśniejszy, aby odciąć się od tła */
 #LeftPanel {
     background-color: #2b2b2b;
-    border-right: 1px solid #1e1e1e;
+    border: none;
+    border-radius: 6px;
 }
 
-/* Prawy panel - obszar główny raportów */
 #RightPanel {
     background-color: #242424;
 }
 
-/* Globalny styl dla wszystkich przycisków w aplikacji */
+/* Karta powitalna na środku */
+#WelcomeCard {
+    background-color: #1e1e1e;
+    border-radius: 15px;
+}
+
 QPushButton {
-    background-color: #1f6aa5; /* Natywny błękitny z CTk */
+    background-color: #1f6aa5;
     color: white;
     border-radius: 6px;
     padding: 8px 16px;
     font-family: "Segoe UI";
     font-size: 14px;
-    font-weight: 500;
-    border: none;
+    font-weight: bold;
+    border: none; /* Wymagane, by Windows nie psuł zaokrągleń */
 }
 
-/* Zmiana koloru przycisku po najechaniu myszką */
 QPushButton:hover {
     background-color: #144a73;
 }
