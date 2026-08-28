@@ -6,9 +6,22 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QVBoxLayout,
-    QWidget
+    QWidget,
 )
 
+from assets.ui_metrics import (
+    LEFT_PANEL_MARGINS,
+    LEFT_PANEL_SPACING,
+    LEFT_PANEL_WIDTH,
+    MAIN_LAYOUT_MARGINS,
+    MAIN_LAYOUT_SPACING,
+    MAIN_WINDOW_SIZE,
+    RIGHT_PANEL_MARGINS,
+    WELCOME_CARD_SIZE,
+    WELCOME_LOGO_BOTTOM_SPACING,
+    WELCOME_SPACING,
+    WELCOME_VERSION_TOP_SPACING,
+)
 from project.config.version import PROGRAM_NAME
 from project.core.app_state import AppState
 from project.GUI.ui_texts import ASCII_LOGO, HOME_DESC, HOME_SUBTITLE, HOME_VERSION
@@ -31,7 +44,7 @@ class MainWindow(QMainWindow):
         self.signals = MainWindowSignals()
 
         self.setWindowTitle(PROGRAM_NAME)
-        self.resize(840, 640)
+        self.resize(MAIN_WINDOW_SIZE)
 
         # Wywołanie metod budujących interfejs (dokładnie jak u Ciebie)
         self._configure_layout()
@@ -44,18 +57,18 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.main_layout = QHBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setContentsMargins(*MAIN_LAYOUT_MARGINS)
+        self.main_layout.setSpacing(MAIN_LAYOUT_SPACING)
 
     def _build_left_panel(self):
         # Odpowiednik self.left = ctk.CTkFrame
         self.left_panel = QFrame()
         self.left_panel.setObjectName("LeftPanel")
-        self.left_panel.setFixedWidth(220)
+        self.left_panel.setFixedWidth(LEFT_PANEL_WIDTH)
 
         self.left_layout = QVBoxLayout(self.left_panel)
-        self.left_layout.setContentsMargins(15, 20, 15, 20)
-        self.left_layout.setSpacing(15)
+        self.left_layout.setContentsMargins(*LEFT_PANEL_MARGINS)
+        self.left_layout.setSpacing(LEFT_PANEL_SPACING)
 
         # --- Górne przyciski ---
         self.btn_load_machines = QPushButton("Wczytaj maszyny")
@@ -105,7 +118,7 @@ class MainWindow(QMainWindow):
         self.right_panel.setObjectName("RightPanel")
 
         self.right_layout = QVBoxLayout(self.right_panel)
-        self.right_layout.setContentsMargins(20, 20, 20, 20)
+        self.right_layout.setContentsMargins(*RIGHT_PANEL_MARGINS)
 
         # Zbudowanie ekranu powitalnego wewnątrz prawego panelu
         self._build_welcome_screen()
@@ -118,11 +131,11 @@ class MainWindow(QMainWindow):
         self.welcome_inner.setObjectName("WelcomeCard")
 
         # Ograniczamy wielkość karty, żeby nie rozciągała się na cały ekran
-        self.welcome_inner.setFixedSize(550, 350)
+        self.welcome_inner.setFixedSize(WELCOME_CARD_SIZE)
 
         welcome_layout = QVBoxLayout(self.welcome_inner)
         welcome_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_layout.setSpacing(10)
+        welcome_layout.setSpacing(WELCOME_SPACING )
 
         # --- Logo ASCII ---
         self.lbl_logo = QLabel(ASCII_LOGO)
@@ -147,10 +160,10 @@ class MainWindow(QMainWindow):
 
         # Składanie elementów na karcie
         welcome_layout.addWidget(self.lbl_logo)
-        welcome_layout.addSpacing(10)
+        welcome_layout.addSpacing(WELCOME_LOGO_BOTTOM_SPACING)
         welcome_layout.addWidget(self.lbl_title)
         welcome_layout.addWidget(self.lbl_desc)
-        welcome_layout.addSpacing(20)
+        welcome_layout.addSpacing(WELCOME_VERSION_TOP_SPACING)
         welcome_layout.addWidget(self.lbl_ver)
 
         # Centrowanie karty w prawym panelu za pomocą addStretch
