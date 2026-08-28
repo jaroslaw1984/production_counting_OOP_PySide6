@@ -9,8 +9,6 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    print(f"Szukam pliku stylów dokładnie tutaj: {STYLE_PATH.absolute()}")
-
     # Wczytanie globalnego wyglądu z pliku QSS za pomocą bezpiecznej ścieżki
     if STYLE_PATH.exists():
         app.setStyleSheet(STYLE_PATH.read_text(encoding="utf-8"))
