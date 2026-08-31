@@ -1,4 +1,5 @@
 from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -17,7 +18,8 @@ from assets.ui_metrics import (
     MAIN_LAYOUT_SPACING,
     MAIN_WINDOW_SIZE,
     RIGHT_PANEL_MARGINS,
-    WELCOME_CARD_SIZE,
+    WELCOME_CARD_HORIZONTAL_PADDING,
+    WELCOME_CARD_MIN_HEIGHT,
     WELCOME_LOGO_BOTTOM_SPACING,
     WELCOME_SPACING,
     WELCOME_VERSION_TOP_SPACING,
@@ -130,18 +132,26 @@ class MainWindow(QMainWindow):
         self.welcome_inner = QFrame()
         self.welcome_inner.setObjectName("WelcomeCard")
 
-        # Ograniczamy wielkość karty, żeby nie rozciągała się na cały ekran
-        self.welcome_inner.setFixedSize(WELCOME_CARD_SIZE)
-
         welcome_layout = QVBoxLayout(self.welcome_inner)
         welcome_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_layout.setSpacing(WELCOME_SPACING )
+        welcome_layout.setSpacing(WELCOME_SPACING)
 
         # --- Logo ASCII ---
-        self.lbl_logo = QLabel(ASCII_LOGO)
+        self.lbl_logo = QLabel(ASCII_LOGO.strip("\n"))
+        self.lbl_logo.setObjectName("WelcomeLogo")
         self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # Stylowanie czcionki bezpośrednio, dokładnie jak text_color=("#2980b9", "#85c1e9") w CTk
-        self.lbl_logo.setStyleSheet("color: #85c1e9; font-family: 'Courier New'; font-size: 11px; font-weight: bold;")
+        self.lbl_logo.ensurePolished()
+
+        font_metrics = QFontMetrics(self.lbl_logo.font())
+        logo_width = max(
+            font_metrics.horizontalAdvance(line)
+            for line in self.lbl_logo.text().splitlines()
+        )
+        self.lbl_logo.setMinimumWidth(logo_width)
+        self.welcome_inner.setMinimumSize(
+            logo_width + WELCOME_CARD_HORIZONTAL_PADDING,
+            WELCOME_CARD_MIN_HEIGHT,
+        )
 
         # --- Tytuł ---
         self.lbl_title = QLabel(HOME_SUBTITLE)
