@@ -19,6 +19,13 @@ QMainWindow {
     border-radius: 15px;
 }
 
+#WelcomeLogo {
+    color: #85c1e9;
+    font-family: "Courier New";
+    font-size: 11px;
+    font-weight: bold;
+}
+
 QPushButton {
     background-color: #1f6aa5;
     color: white;
