@@ -44,3 +44,13 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #0d324d;
 }
+
+/* Styl dla QMessageBox (warrning) */
+QMessageBox {
+    background-color: #242424;
+}
+
+QMessageBox QLabel {
+    color: white;
+    font-size: 14px;
+}

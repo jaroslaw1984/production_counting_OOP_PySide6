@@ -8,6 +8,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QMessageBox,
+    QFileDialog
 )
 
 from assets.ui_metrics import (
@@ -186,3 +188,32 @@ class MainWindow(QMainWindow):
 
     def hide_welcome_screen(self):
         self.welcome_inner.hide()
+
+    # # # # # # # # # # # # # # # # # # # # # #
+    # Helpery dla kontrolera (controllers.py) #
+    # # # # # # # # # # # # # # # # # # # # # #
+
+    def show_error(self, title: str, message: str) -> None:
+        QMessageBox.critical(self, title, message)
+
+    def show_warning(self, title: str, message: str) -> None:
+        QMessageBox.warning(self, title, message)
+
+    def show_yes_no(self, title: str, message: str) -> bool:
+        reply = QMessageBox.question(
+            self,
+            title,
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
+    def ask_for_file_path(self, title: str = "Wybierz plik Excel/CSV") -> str | None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            title,
+            "",
+            "Pliki danych (*.xlsx *.xls *.csv);;Wszystkie pliki (*.*)"
+        )
+        return file_path if file_path else None
