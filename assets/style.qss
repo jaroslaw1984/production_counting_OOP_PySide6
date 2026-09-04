@@ -54,3 +54,93 @@ QMessageBox QLabel {
     color: white;
     font-size: 14px;
 }
+
+/* ========================================== */
+/* WIDŻETY FORMULARZY I OKIEN DIALOGOWYCH     */
+/* ========================================== */
+
+QDialog {
+    background-color: #242424;
+}
+
+QLineEdit {
+    background-color: #1e1e1e;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: white;
+    font-size: 13px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #1f6aa5;
+}
+
+QCheckBox {
+    color: white;
+    font-size: 14px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #1e1e1e;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #1f6aa5;
+    border: 1px solid #1f6aa5;
+    /* Prosty znak X/Check dla zaznaczonego (wymaga natywnego renderowania lub obrazka, PySide6 domyślnie wstawi swój lub zmieni tło) */
+}
+
+QScrollArea {
+    border: none;
+    background-color: transparent;
+}
+
+QScrollArea > QWidget > QWidget {
+    background-color: transparent;
+}
+
+/* Nowoczesny pasek przewijania */
+QScrollBar:vertical {
+    border: none;
+    background-color: #2a2a2a;
+    width: 10px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #555;
+    min-height: 20px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #777;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+
+QRadioButton {
+    color: white;
+    font-size: 14px;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px; /* Okrągłe */
+    border: 1px solid #555;
+    background-color: #1e1e1e;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #1f6aa5;
+    border: 2px solid #1e1e1e; /* Efekt "kropki" w środku */
+}
