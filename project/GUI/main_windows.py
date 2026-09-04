@@ -1,15 +1,17 @@
+from collections.abc import Callable
+
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
-    QMessageBox,
-    QFileDialog
 )
 
 from assets.ui_metrics import (
@@ -27,7 +29,7 @@ from assets.ui_metrics import (
     WELCOME_VERSION_TOP_SPACING,
 )
 from project.config.version import PROGRAM_NAME
-from project.core.app_state import AppState
+from project.GUI.popups import SchedulePopup
 from project.GUI.ui_texts import ASCII_LOGO, HOME_DESC, HOME_SUBTITLE, HOME_VERSION
 
 
@@ -188,6 +190,11 @@ class MainWindow(QMainWindow):
 
     def hide_welcome_screen(self):
         self.welcome_inner.hide()
+
+    # W metodach na dole klasy MainWindow:
+    def show_schedule_popup(self, on_confirm: Callable) -> None:
+        popup = SchedulePopup(self, on_confirm)
+        popup.exec()
 
     # # # # # # # # # # # # # # # # # # # # # #
     # Helpery dla kontrolera (controllers.py) #
